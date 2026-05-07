@@ -49,7 +49,7 @@ const AdminRoute = ({ children }) => {
   return children;
 };
 
-export default function AppRouter() {
+export default function UpAppRouter() {
   return (
     <MainLayout>
       <Routes>

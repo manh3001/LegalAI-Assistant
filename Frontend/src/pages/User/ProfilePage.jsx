@@ -1,250 +1,407 @@
-import React, { useState } from 'react';
-import EditProfileModal from "../../components/EditProfileModal";
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import axiosClient from '../../api/axiosClient';
+import toast from 'react-hot-toast';
 import {
-    UserIcon,
-    CalendarDaysIcon,
-    KeyIcon,
-    ClockIcon,
-    ChevronRightIcon,
-    ScaleIcon,
-    ChatBubbleBottomCenterTextIcon,
-    EyeIcon,
-    EyeSlashIcon,
-    MapPinIcon,
-    VideoCameraIcon
+  UserCircleIcon,
+  LockClosedIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  TrashIcon,
+  ShieldExclamationIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 
+const getInitials = (fullName) => {
+  if (!fullName) return 'LG';
+  return fullName
+    .split(' ')
+    .filter(Boolean)
+    .slice(-2)
+    .map((part) => part[0].toUpperCase())
+    .join('');
+};
+
 export default function ProfilePage() {
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState('profile');
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [formData, setFormData] = useState({ fullName: '', email: '' });
+  const [securityData, setSecurityData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [showPassword, setShowPassword] = useState({ current: false, new: false, confirm: false });
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-    const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
-    const [passData, setPassData] = useState({ current: "", new: "", confirm: "" });
-    const navigate = useNavigate();
-    const user = {
-        username: "vanquy263",
-        fullName: "Huỳnh Văn Quý",
-        email: "vanquy263@gmail.com",
-        phone: "033 444 5555",
-        address: "Thanh Khê Thạc Gián, Đà Nẵng",
-        bio: "Đam mê pháp luật và công nghệ. Thích tìm hiểu các giải pháp AI trong tư vấn lý.",
-        joinDate: "09/04/2025"
-    };
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (!storedUser) {
+      navigate('/login');
+      return;
+    }
 
-    const appointments = [
-        { id: 1, lawyer: "Luật sư Nguyễn Văn A", service: "Tư vấn Dân sự", date: "25/10/2025", time: "09:00", status: "Đã xác nhận", type: "Trực tuyến" },
-        { id: 2, lawyer: "Luật sư Trần Thị B", service: "Luật Doanh nghiệp", date: "30/10/2025", time: "14:30", status: "Đang chờ", type: "Tại văn phòng" },
-    ];
+    try {
+      const parsed = JSON.parse(storedUser);
+      setUser(parsed);
+      setFormData({
+        fullName: parsed.fullName || '',
+        email: parsed.email || '',
+      });
+    } catch (err) {
+      console.error('ProfilePage load user error', err);
+      navigate('/login');
+    }
+  }, [navigate]);
 
-    const navItems = [
-        { id: 'profile', label: 'Thông tin cá nhân', icon: UserIcon },
-        { id: 'appointments', label: 'Quản lý lịch hẹn', icon: CalendarDaysIcon },
-        { id: 'password', label: 'Đổi mật khẩu', icon: KeyIcon },
-        { id: 'activity', label: 'Hoạt động gần đây', icon: ClockIcon },
-    ];
+  const handleInputChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
-    const handlePasswordChange = (e) => {
-        e.preventDefault();
-        if (!passData.current || !passData.new || !passData.confirm) return alert("Vui lòng nhập đủ thông tin");
-        if (passData.new !== passData.confirm) return alert("Mật khẩu không trùng khớp");
-        alert("Đổi mật khẩu thành công");
-    };
+  const handleSecurityChange = (field, value) => {
+    setSecurityData((prev) => ({ ...prev, [field]: value }));
+  };
 
-    const renderTabContent = () => {
-        switch (activeTab) {
-            case 'profile':
-                return (
-                    <>
-                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 rounded-t-2xl z-10">
-                            <h2 className="text-2xl font-extrabold text-slate-800">Thông Tin Cá Nhân</h2>
-                            <button onClick={() => setIsEditModalOpen(true)} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-800 transition-all hover:shadow-lg active:scale-95">Chỉnh sửa</button>
-                        </div>
-                        <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-10">
-                            {[
-                                { label: "Tên người dùng", value: `@${user.username}` },
-                                { label: "Email", value: user.email },
-                                { label: "Họ và tên", value: user.fullName },
-                                { label: "Số điện thoại", value: user.phone },
-                                { label: "Địa chỉ", value: user.address, fullWidth: true },
-                                { label: "Giới thiệu", value: user.bio, fullWidth: true, isItalic: true },
-                            ].map((field, index) => (
-                                <div key={index} className={`${field.fullWidth ? "md:col-span-2" : ""}`}>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{field.label}</p>
-                                    <p className={`text-[17px] font-medium text-slate-700 ${field.isItalic ? "italic text-slate-500" : ""}`}>{field.value}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                );
-            case 'appointments':
-                return (
-                    <>
-                        <div className="p-8 border-b border-slate-100 bg-white sticky top-0 rounded-t-2xl z-10">
-                            <h2 className="text-2xl font-extrabold text-slate-800">Lịch Hẹn Của Tôi</h2>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            {appointments.map((app) => (
-                                <div key={app.id} className="p-6 border border-slate-100 rounded-2xl bg-white hover:shadow-md transition-shadow flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${app.status === 'Đã xác nhận' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>{app.status}</span>
-                                            <span className="flex items-center gap-1 text-slate-400 text-sm">
-                                                {app.type === "Trực tuyến" ? <VideoCameraIcon className="w-4 h-4" /> : <MapPinIcon className="w-4 h-4" />}
-                                                {app.type}
-                                            </span>
-                                        </div>
-                                        <h3 className="font-bold text-lg text-slate-800">{app.service}</h3>
-                                        <p className="text-slate-500 text-sm font-medium">{app.lawyer}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="flex items-center md:justify-end gap-2 text-slate-900 font-bold">
-                                            <ClockIcon className="w-5 h-5 text-slate-400" />
-                                            {app.time} - {app.date}
-                                        </div>
-                                        <button className="mt-3 text-sm font-bold text-slate-400 hover:text-red-500 transition-colors">Hủy lịch hẹn</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                );
-            case 'password':
-                return (
-                    <div className="p-10 flex flex-col items-center animate-fadeIn">
-                        <h2 className="text-2xl font-bold text-slate-800 mb-10 tracking-tight">Đổi mật khẩu</h2>
+  const handleSaveProfile = async (event) => {
+    event.preventDefault();
 
-                        <form onSubmit={handlePasswordChange} className="w-full max-w-xl space-y-5">
-                            {['current', 'new', 'confirm'].map((field) => (
-                                <div key={field} className="relative">
-                                    <KeyIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400" />
+    if (!formData.fullName.trim()) {
+      toast.error('Họ và tên không được để trống.');
+      return;
+    }
 
-                                    <input
-                                        type={showPass[field] ? "text" : "password"}
-                                        placeholder={
-                                            field === 'current' ? "Mật khẩu hiện tại" :
-                                                field === 'new' ? "Mật khẩu mới" :
-                                                    "Nhập lại mật khẩu mới"
-                                        }
-                                        className="w-full pl-16 pr-16 py-5 bg-[#eeeeee] border-none rounded-full outline-none focus:ring-2 focus:ring-slate-300 transition-all text-slate-600 placeholder:text-slate-400"
-                                        onChange={(e) => setPassData({ ...passData, [field]: e.target.value })}
-                                    />
+    const hasPasswordChange = securityData.currentPassword || securityData.newPassword || securityData.confirmPassword;
+    if (hasPasswordChange) {
+      if (!securityData.currentPassword) {
+        toast.error('Nhập mật khẩu hiện tại để tiếp tục.');
+        return;
+      }
+      if (!securityData.newPassword) {
+        toast.error('Nhập mật khẩu mới.');
+        return;
+      }
+      if (securityData.newPassword !== securityData.confirmPassword) {
+        toast.error('Mật khẩu mới và xác nhận không khớp.');
+        return;
+      }
+      if (securityData.newPassword.length < 6) {
+        toast.error('Mật khẩu mới phải có ít nhất 6 ký tự.');
+        return;
+      }
+    }
 
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPass({ ...showPass, [field]: !showPass[field] })}
-                                        className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                    >
-                                        {showPass[field] ? <EyeSlashIcon className="w-6 h-6" /> : <EyeIcon className="w-6 h-6" />}
-                                    </button>
-                                </div>
-                            ))}
+    if (formData.fullName.trim() === (user?.fullName || '') && !hasPasswordChange) {
+      toast('Không có thay đổi nào để lưu.');
+      return;
+    }
 
-                            <div className="flex flex-col md:flex-row justify-between items-start gap-6 px-6 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => navigate('/quen-mat-khau')} // Lệnh chuyển trang
-                                    className="text-sm font-medium text-slate-500 hover:text-slate-800 underline decoration-slate-300 underline-offset-4 transition-all"
-                                >
-                                    Bạn đã quên mật khẩu hiện tại?
-                                </button>
+    try {
+      setIsSaving(true);
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      }
 
-                                <p className="text-[10px] text-slate-400 leading-relaxed max-w-[280px] md:text-right italic font-medium">
-                                    Mật khẩu bạn của bạn phải có tối thiểu 6 ký tự, đồng thời bao gồm cả chữ và số, chữ cái và ký tự đặc biệt.
-                                </p>
-                            </div>
+      const payload = { fullName: formData.fullName.trim() };
+      if (securityData.newPassword) {
+        payload.currentPassword = securityData.currentPassword;
+        payload.newPassword = securityData.newPassword;
+      }
 
-                            <div className="flex justify-center pt-8">
-                                <button
-                                    type="submit"
-                                    className="px-20 py-4 bg-[#b2a4a3] text-slate-800 rounded-full font-bold text-lg hover:bg-slate-900 hover:text-white transition-all shadow-sm active:scale-95"
-                                >
-                                    Đổi mật khẩu
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                );
-                return (
-                    <>
-                        <div className="p-8 border-b border-slate-100 bg-white sticky top-0 rounded-t-2xl z-10 text-center text-2xl font-extrabold text-slate-800">Đổi Mật Khẩu</div>
-                        <form onSubmit={handlePasswordChange} className="p-10 max-w-xl mx-auto w-full space-y-6">
-                            {['current', 'new', 'confirm'].map((field) => (
-                                <div key={field} className="relative">
-                                    <KeyIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                    <input
-                                        type={showPass[field] ? "text" : "password"}
-                                        placeholder={field === 'current' ? "Mật khẩu hiện tại" : field === 'new' ? "Mật khẩu mới" : "Nhập lại mật khẩu mới"}
-                                        className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-slate-900 transition-all"
-                                        onChange={(e) => setPassData({ ...passData, [field]: e.target.value })}
-                                    />
-                                    <button type="button" onClick={() => setShowPass({ ...showPass, [field]: !showPass[field] })} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                                        {showPass[field] ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-                                    </button>
-                                </div>
-                            ))}
-                            <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all active:scale-[0.98]">Cập nhật mật khẩu</button>
-                        </form>
-                    </>
-                );
-            case 'activity':
-                return (
-                    <>
-                        <div className="p-8 border-b border-slate-100 bg-white sticky top-0 rounded-t-2xl z-10 text-2xl font-extrabold text-slate-800">Hoạt Động Cá Nhân</div>
-                        <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-8 text-center uppercase tracking-widest font-bold">
-                            <div className="p-10 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all group">
-                                <ScaleIcon className="w-12 h-12 mx-auto mb-4 text-slate-300 group-hover:text-slate-900" />
-                                <div className="text-4xl mb-1">03</div><div className="text-xs text-slate-400">Vụ án</div>
-                            </div>
-                            <div className="p-10 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all group">
-                                <CalendarDaysIcon className="w-12 h-12 mx-auto mb-4 text-slate-300 group-hover:text-slate-900" />
-                                <div className="text-4xl mb-1">05</div><div className="text-xs text-slate-400">Cuộc hẹn</div>
-                            </div>
-                            <div className="md:col-span-2 p-10 bg-white border border-slate-200 rounded-2xl hover:border-slate-900 transition-all group">
-                                <ChatBubbleBottomCenterTextIcon className="w-12 h-12 mx-auto mb-4 text-slate-300 group-hover:text-slate-900" />
-                                <div className="text-4xl mb-1">02</div><div className="text-xs text-slate-400">Tư vấn</div>
-                            </div>
-                        </div>
-                    </>
-                );
-            default: return null;
-        }
-    };
+      const response = await axiosClient.put('/users/profile', payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    return (
-        <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans">
-            <main className="max-w-6xl mx-auto px-4 py-12">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    <aside className="lg:col-span-4 space-y-6 text-center">
-                        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
-                            <div className="w-24 h-24 bg-slate-100 rounded-full mx-auto mb-4 flex items-center justify-center border border-slate-200 shadow-inner">
-                                <UserIcon className="w-12 h-12 text-slate-300" />
-                            </div>
-                            <h2 className="font-bold text-xl">{user.fullName}</h2>
-                            <p className="text-slate-400 text-xs font-bold uppercase mt-1">Khách hàng</p>
-                            <div className="mt-6 pt-6 border-t border-slate-100 flex justify-around text-xs font-semibold">
-                                <div><p className="text-slate-400">Tham gia</p><p>{user.joinDate}</p></div>
-                                <div><p className="text-slate-400">Trạng thái</p><p className="text-green-600">Đã xác thực</p></div>
-                            </div>
-                        </div>
-                        <nav className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm overflow-hidden text-left">
-                            {navItems.map((item) => (
-                                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center justify-between px-4 py-4 rounded-xl transition-all ${activeTab === item.id ? "bg-slate-900 text-white shadow-lg shadow-slate-200" : "text-slate-600 hover:bg-slate-50"}`}>
-                                    <div className="flex items-center gap-3">
-                                        <item.icon className="w-5 h-5" />
-                                        <span className="font-bold text-sm">{item.label}</span>
-                                    </div>
-                                    {activeTab === item.id && <ChevronRightIcon className="w-4 h-4" />}
-                                </button>
-                            ))}
-                        </nav>
-                    </aside>
-                    <section className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 min-h-[600px] shadow-sm overflow-hidden">
-                        {renderTabContent()}
-                    </section>
+      const updatedUser = response.data?.user;
+      if (!updatedUser) {
+        throw new Error(response.data?.message || 'Lưu hồ sơ thất bại.');
+      }
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      setFormData({ fullName: updatedUser.fullName || '', email: updatedUser.email || '' });
+      setSecurityData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      toast.success('Thông tin hồ sơ đã được cập nhật.');
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.message || error.message || 'Không thể lưu thay đổi.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      toast.error('Nhập mật khẩu xác nhận để xóa tài khoản.');
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      }
+
+      const response = await axiosClient.delete('/users/account', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        data: { password: deletePassword },
+      });
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Xóa tài khoản thất bại.');
+      }
+
+      toast.success('Tài khoản đã được xóa thành công.');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('user');
+      navigate('/login');
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.message || error.message || 'Không thể xóa tài khoản.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  if (!user) {
+    return <div className="min-h-screen bg-zinc-50" />;
+  }
+
+  return (
+    <div className="min-h-screen bg-zinc-50 text-zinc-900">
+      <main className="max-w-6xl mx-auto px-4 py-12">
+        <div className="space-y-8">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            className="rounded-[2rem] border border-zinc-200 bg-white/90 p-8 shadow-sm"
+          >
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-sm uppercase tracking-[0.35em] text-zinc-400">Hồ sơ cá nhân</p>
+                <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-zinc-950">Quản lý thông tin</h1>
+                <p className="max-w-2xl text-sm leading-6 text-zinc-500 mt-2">
+                  Cập nhật tên và mật khẩu của bạn. Email là định danh cố định bảo mật hồ sơ pháp lý.
+                </p>
+              </div>
+              <div className="flex items-center gap-4 rounded-3xl border border-zinc-200 bg-zinc-100 px-5 py-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#B8985D]/10 text-2xl font-black text-[#8E6D45]">
+                  {getInitials(user.fullName)}
                 </div>
-            </main>
-            <EditProfileModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} userData={user} />
+                <div>
+                  <p className="text-sm uppercase tracking-[0.3em] text-zinc-500">Tài khoản</p>
+                  <p className="text-lg font-bold text-zinc-950">{user.fullName || user.email}</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.form
+            onSubmit={handleSaveProfile}
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.08, ease: 'easeOut' }}
+            className="relative rounded-[2rem] border border-zinc-200 bg-white p-8 shadow-sm"
+          >
+            <div className="grid gap-8">
+              <section className="space-y-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-zinc-950">Identity</h2>
+                    <p className="mt-2 text-sm text-zinc-500">Thông tin cá nhân và email liên hệ.</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-zinc-500">
+                    <UserCircleIcon className="h-5 w-5" />
+                    <span>Minimalist · Zinc · Vàng đồng</span>
+                  </div>
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <label className="space-y-3">
+                    <span className="text-sm font-bold text-zinc-700">Họ và tên</span>
+                    <input
+                      value={formData.fullName}
+                      onChange={(event) => handleInputChange('fullName', event.target.value)}
+                      className="w-full rounded-[1rem] border border-zinc-200 bg-zinc-50 px-4 py-4 text-lg font-bold text-zinc-900 outline-none transition focus:border-[#B8985D] focus:ring-2 focus:ring-[#B8985D]/20"
+                    />
+                  </label>
+
+                  <label className="space-y-3">
+                    <span className="flex items-center gap-2 text-sm font-bold text-zinc-700">
+                      Email
+                      <span
+                        title="Email là định danh cố định để bảo mật hồ sơ pháp lý"
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-zinc-500"
+                      >
+                        i
+                      </span>
+                    </span>
+                    <div className="relative">
+                      <LockClosedIcon className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
+                      <input
+                        value={formData.email}
+                        readOnly
+                        className="w-full rounded-[1rem] border border-zinc-200 bg-zinc-50/80 px-12 py-4 text-zinc-600 opacity-60 outline-none"
+                      />
+                    </div>
+                  </label>
+                </div>
+              </section>
+
+              <section className="space-y-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-zinc-950">Bảo mật</h2>
+                    <p className="mt-2 text-sm text-zinc-500">Đổi mật khẩu hiện tại của bạn để bảo vệ hồ sơ.</p>
+                  </div>
+                  <div className="rounded-3xl bg-[#F7EFD6] px-4 py-2 text-sm font-semibold text-[#8E6D45]">
+                    Mật khẩu mới
+                  </div>
+                </div>
+
+                <div className="grid gap-5">
+                  {[
+                    { key: 'currentPassword', label: 'Mật khẩu hiện tại' },
+                    { key: 'newPassword', label: 'Mật khẩu mới' },
+                    { key: 'confirmPassword', label: 'Xác nhận mật khẩu mới' },
+                  ].map((field) => (
+                    <label key={field.key} className="space-y-2">
+                      <span className="text-sm font-semibold text-zinc-700">{field.label}</span>
+                      <div className="relative">
+                        <input
+                          type={showPassword[field.key.replace('Password', '')] ? 'text' : 'password'}
+                          value={securityData[field.key]}
+                          onChange={(event) => handleSecurityChange(field.key, event.target.value)}
+                          placeholder={field.label}
+                          className="w-full rounded-[1rem] border border-zinc-200 bg-zinc-50 px-4 py-4 pr-14 text-zinc-900 outline-none transition focus:border-[#B8985D] focus:ring-2 focus:ring-[#B8985D]/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => ({
+                            ...prev,
+                            [field.key.replace('Password', '')]: !prev[field.key.replace('Password', '')],
+                          }))}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 transition hover:text-zinc-600"
+                        >
+                          {showPassword[field.key.replace('Password', '')] ? (
+                            <EyeSlashIcon className="h-5 w-5" />
+                          ) : (
+                            <EyeIcon className="h-5 w-5" />
+                          )}
+                        </button>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </section>
+
+              <section className="space-y-6 rounded-[1.75rem] border border-rose-200/80 bg-rose-50/50 p-6">
+                <div className="flex items-center gap-3">
+                  <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
+                    <ShieldExclamationIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-rose-700">Danger Zone</h2>
+                    <p className="text-sm text-rose-500">Xóa tài khoản sẽ xoá dữ liệu hồ sơ cá nhân của bạn.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="inline-flex items-center justify-center rounded-2xl border border-rose-200 px-5 py-3 text-sm font-bold text-rose-500 transition hover:bg-rose-100"
+                >
+                  <TrashIcon className="mr-2 h-5 w-5" /> Xóa tài khoản
+                </button>
+              </section>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="absolute right-8 bottom-8 rounded-2xl bg-[#B8985D] px-7 py-4 text-sm font-bold text-white shadow-lg shadow-[#B8985D]/20 transition hover:bg-[#8E6D45] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </button>
+          </motion.form>
         </div>
-    );
+      </main>
+
+      <AnimatePresence>
+        {isDeleteModalOpen &&
+          createPortal(
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                className="w-full max-w-xl rounded-[2rem] bg-white p-8 shadow-2xl"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.35em] text-zinc-400">Xác thực nguy hiểm</p>
+                    <h2 className="mt-3 text-2xl font-bold text-zinc-950">Xóa tài khoản</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsDeleteModalOpen(false)}
+                    className="rounded-full bg-zinc-100 p-2 text-zinc-600 transition hover:bg-zinc-200"
+                  >
+                    <ChevronRightIcon className="h-5 w-5 rotate-180" />
+                  </button>
+                </div>
+
+                <p className="mt-4 text-sm leading-6 text-zinc-600">
+                  Để tiếp tục, hãy nhập mật khẩu hiện tại. Đây là bước xác nhận cuối cùng trước khi xóa toàn bộ tài khoản của bạn.
+                </p>
+
+                <div className="mt-6 space-y-4">
+                  <label className="space-y-2 text-sm font-semibold text-zinc-700">
+                    Mật khẩu xác nhận
+                    <input
+                      type="password"
+                      value={deletePassword}
+                      onChange={(event) => setDeletePassword(event.target.value)}
+                      className="w-full rounded-[1rem] border border-zinc-200 bg-zinc-50 px-4 py-4 text-zinc-900 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                      placeholder="Nhập mật khẩu hiện tại"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsDeleteModalOpen(false)}
+                    className="rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteAccount}
+                    disabled={isDeleting}
+                    className="rounded-2xl bg-rose-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isDeleting ? 'Đang xóa...' : 'Xác nhận xóa'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>,
+            document.body
+          )}
+      </AnimatePresence>
+    </div>
+  );
 }

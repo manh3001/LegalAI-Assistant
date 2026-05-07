@@ -3,23 +3,29 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import {
     XMarkIcon,
     PaperAirplaneIcon,
     SparklesIcon,
     CloudArrowUpIcon,
     CheckBadgeIcon,
-    PlusIcon // Icon tạo cuộc trò chuyện mới
+    PlusIcon
 } from '@heroicons/react/24/outline';
 import aiClient from '../api/aiClient';
 
 export default function ChatbotAI({ isOpen, onClose }) {
+    const navigate = useNavigate();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
-
+    // Kiểm tra trạng thái login và lượt chat của khách
+    const [isLoggedIn] = useState(!!localStorage.getItem("accessToken"));
+    const [guestCount, setGuestCount] = useState(
+        parseInt(localStorage.getItem("legai_guest_count") || "0")
+    );
     const messagesEndRef = useRef(null);
     const textareaRef = useRef(null);
 
@@ -106,6 +112,10 @@ export default function ChatbotAI({ isOpen, onClose }) {
 
     const handleSend = async (e) => {
         if (e) e.preventDefault();
+
+        // 1. Chặn gửi nếu là khách và đã hết lượt
+        if (!isLoggedIn && guestCount >= 3) return;
+
         if (!input.trim() || isLoading) return;
 
         const userMsg = { id: Date.now(), text: input, isBot: false };
@@ -122,6 +132,13 @@ export default function ChatbotAI({ isOpen, onClose }) {
                 text: res.answer || "Tôi đang học hỏi thêm về vấn đề này, bạn có thể nói rõ hơn không?",
                 isBot: true
             }]);
+
+            // 2. Tăng lượt đếm sau khi AI trả lời thành công (chỉ áp dụng cho khách)
+            if (!isLoggedIn) {
+                const newCount = guestCount + 1;
+                setGuestCount(newCount);
+                localStorage.setItem("legai_guest_count", newCount.toString());
+            }
         } catch (error) {
             setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ Server LegAI đang bận, thử lại sau nhé bạn.", isBot: true }]);
         } finally {
@@ -138,7 +155,7 @@ export default function ChatbotAI({ isOpen, onClose }) {
 
     if (!isOpen) return null;
 
-   const formatAIMessage = (text) => {
+    const formatAIMessage = (text) => {
         if (!text) return "";
         let content = text;
 
@@ -182,7 +199,7 @@ export default function ChatbotAI({ isOpen, onClose }) {
         if (typeof content !== 'string') content = String(content);
 
         // BƯỚC 2: TỰ ĐỘNG ÉP ĐỊNH DẠNG TIÊU ĐỀ (Xử lý cả text thô và icon cũ)
-       const titles = [
+        const titles = [
             { key: 'Kết luận', icon: '⚖️' },
             { key: 'Phân tích', icon: '🔍' },
             { key: 'Cơ sở pháp lý', icon: '📚' },
@@ -192,7 +209,7 @@ export default function ChatbotAI({ isOpen, onClose }) {
         titles.forEach(item => {
             // Regex này quét sạch icon cũ (nếu có) và ép về định dạng **Tiêu đề:** xuống dòng
             const regex = new RegExp(`^(\\s*|[⚖️🔍📚💡]\\s*|\\*\\*)*${item.key}(:?\\s*|:?\\*\\*\\s*)?`, 'gmi');
-            content = content.replace(regex, `**${item.key}:**\n`); 
+            content = content.replace(regex, `**${item.key}:**\n`);
         });
         // BƯỚC 3: XỬ LÝ MIỄN TRỪ TRÁCH NHIỆM (Disclaimer)
         content = content.replace(/Nội dung do LegAI cung cấp.*/gi, (match) => `\n\n---\n*${match}*`);
@@ -297,29 +314,60 @@ export default function ChatbotAI({ isOpen, onClose }) {
                 </div>
 
                 {/* INPUT AREA */}
+                {/* INPUT AREA */}
                 <div className="p-4 bg-white border-t border-zinc-200 shrink-0 rounded-b-[2.5rem]">
-                    <form onSubmit={handleSend} className="relative flex items-end">
-                        <textarea
-                            ref={textareaRef}
-                            rows={1}
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder="Nhập câu hỏi pháp lý..."
-                            className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3.5 pl-4 pr-12 text-sm font-medium focus:outline-none focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 resize-none transition-all duration-200 custom-scrollbar placeholder:text-zinc-400 text-[#1A2530]"
-                            style={{ minHeight: '48px' }}
-                        />
-                        <button
-                            type="submit"
-                            disabled={!input.trim() || isLoading}
-                            className={`absolute right-1.5 bottom-1.5 h-[36px] w-[36px] flex items-center justify-center rounded-xl transition-all shadow-sm ${!input.trim() || isLoading
-                                ? 'bg-zinc-100 text-zinc-400'
-                                : 'bg-[#1A2530] text-white hover:bg-[#B8985D]'
-                                }`}
+                    {!isLoggedIn && guestCount >= 3 ? (
+                        // GIAO DIỆN CHẶN KIỂU SHOPEE
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex flex-col items-center p-6 bg-gradient-to-b from-zinc-50 to-white rounded-[2rem] border border-dashed border-[#B8985D]/40 shadow-inner"
                         >
-                            <PaperAirplaneIcon className="w-4 h-4 stroke-2 -rotate-45" />
-                        </button>
-                    </form>
+                            <div className="w-12 h-12 bg-[#B8985D]/10 rounded-full flex items-center justify-center mb-3">
+                                <SparklesIcon className="w-6 h-6 text-[#B8985D]" />
+                            </div>
+                            <p className="text-[13px] font-bold text-zinc-600 text-center mb-4 leading-relaxed">
+                                Bạn đã hết lượt chat thử nghiệm. <br />
+                                <span className="text-[#B8985D]">Đăng nhập</span> để tiếp tục sử dụng LegAI.
+                            </p>
+                            <button
+                                onClick={() => navigate("/login?redirect=/chatbot")}
+                                className="w-full py-3.5 bg-[#1A2530] text-white rounded-2xl text-[13px] font-black hover:bg-[#B8985D] transition-all shadow-xl shadow-zinc-200 active:scale-95"
+                            >
+                                ĐĂNG NHẬP NGAY
+                            </button>
+                            <button
+                                onClick={() => navigate("/register")}
+                                className="mt-3 text-[11px] font-bold text-zinc-400 hover:text-zinc-600 underline underline-offset-4"
+                            >
+                                Tạo tài khoản mới miễn phí
+                            </button>
+                        </motion.div>
+                    ) : (
+                        // Ô NHẬP TEXT BÌNH THƯỜNG
+                        <form onSubmit={handleSend} className="relative flex items-end">
+                            <textarea
+                                ref={textareaRef}
+                                rows={1}
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder={isLoggedIn ? "Nhập câu hỏi pháp lý..." : `Dùng thử (${3 - guestCount} lượt còn lại)...`}
+                                className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3.5 pl-4 pr-12 text-sm font-medium focus:outline-none focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 resize-none transition-all duration-200 custom-scrollbar placeholder:text-zinc-400 text-[#1A2530]"
+                                style={{ minHeight: '48px' }}
+                            />
+                            <button
+                                type="submit"
+                                disabled={!input.trim() || isLoading}
+                                className={`absolute right-1.5 bottom-1.5 h-[36px] w-[36px] flex items-center justify-center rounded-xl transition-all shadow-sm ${!input.trim() || isLoading
+                                    ? 'bg-zinc-100 text-zinc-400'
+                                    : 'bg-[#1A2530] text-white hover:bg-[#B8985D]'
+                                    }`}
+                            >
+                                <PaperAirplaneIcon className="w-4 h-4 stroke-2 -rotate-45" />
+                            </button>
+                        </form>
+                    )}
                 </div>
             </div>
         </motion.div>

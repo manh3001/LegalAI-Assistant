@@ -34,6 +34,10 @@ router.use(authMiddleware);
 router.post('/ai/generate-planning', aiController.generatePlanning);
 router.post('/ai/analyze-contract', aiController.analyzeContract);
 
+// --- Hồ sơ người dùng ---
+router.put('/users/profile', authController.updateProfile);
+router.delete('/users/account', authController.deleteAccount);
+
 // --- Lịch sử phân tích (Dành cho Member) ---
 router.post('/history/save-video', historyController.saveVideoAnalysis);
 router.post('/history/save', historyController.saveAnalysis);
