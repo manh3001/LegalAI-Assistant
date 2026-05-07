@@ -129,7 +129,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
-    const socketUrl = 'http://localhost:8000'; // Cùng URL với backend, sẽ tự chọn ws:// hoặc wss://
+    const socketUrl = 'http://localhost:8000'; // Cùng URL với backend
     const newSocket = io(socketUrl, {
       auth: { token }
     });
@@ -141,25 +141,35 @@ export default function AdminDashboard() {
     newSocket.on('crawl-progress', (data) => {
       setCrawlerStatus(data);
     });
-    //Theo dõi hoạt động AI 
+
+    // 1. Lắng nghe các tính năng AI  (Hợp đồng, Biểu mẫu, Video...)
     newSocket.on('new_activity', (data) => {
-      console.log(' AI vừa được sử dụng:', data);
-
-
-      // : timeframe phải là giá trị mới nhất (week/month/year)
+      console.log(' AI Feature vừa được sử dụng:', data);
       fetchFeatureUsage(timeframe);
     });
+
+    // 2. LẮNG NGHE SỰ KIỆN CHATBOT TỪ BACKEND
+    newSocket.on('new_chat_message', (data) => {
+      console.log(' Chatbot vừa có tin nhắn mới:', data);
+      // Gọi lại API thống kê để cột Chatbot nhảy số real-time
+      fetchFeatureUsage(timeframe);
+    });
+
     newSocket.on('connect_error', (err) => {
       console.error('Socket connect error', err);
     });
 
     fetchCrawlerStatus();
 
+    // 3. Dọn dẹp 
     return () => {
+      newSocket.off('connect');
+      newSocket.off('crawl-progress');
+      newSocket.off('new_activity');
+      newSocket.off('new_chat_message');
       newSocket.disconnect();
     };
-  }, [timeframe]); // Thêm timeframe vào dependency để khi đổi timeframe thì cũng reconnect socket lấy dữ liệu mới nhất
-
+  }, [timeframe]);
   const getStepIcon = (step) => {
     switch (step) {
       case 'check':
@@ -222,7 +232,7 @@ export default function AdminDashboard() {
   })();
 
   return (
-    // SỬA: Thay 'min-h-screen' bằng 'fixed inset-0 z-[200] w-full h-screen overflow-hidden'
+
     <div className="fixed inset-0 z-[200] w-full h-screen bg-white text-gray-900 font-sans selection:bg-amber-500/30 flex">
 
       {/*  SIDEBAR ADMIN */}
@@ -302,7 +312,7 @@ export default function AdminDashboard() {
                       'CONTRACT_REVIEW',
                       'FORM_GENERATOR',
                       'PLANNING',
-                      'CHATBOT_QA'
+                      'CHATBOT'
                     ];
                     // 2. Map data: Tìm trong API, có thì lấy số, không có thì ép về 0
                     const displayFeatures = CORE_FEATURES.map(featName => {

@@ -72,7 +72,7 @@ cron.schedule('* * * * *', async () => {
         // Kiểm tra đã chạy hôm nay chưa
         const today = now.toDateString();
         if (lastAutoCrawlDate === today) {
-            console.log('✅ Đã chạy auto crawl hôm nay');
+            console.log(' Đã chạy auto crawl hôm nay');
             return;
         }
 
@@ -101,14 +101,14 @@ cron.schedule('* * * * *', async () => {
         // Cập nhật lastAutoCrawlDate
         lastAutoCrawlDate = today;
 
-        console.log('🎉 [AUTO CRAWL SUCCESS] Hoàn thành thu thập tự động');
+        console.log(' [AUTO CRAWL SUCCESS] Hoàn thành thu thập tự động');
 
     } catch (error) {
-        console.error('❌ [CRON ERROR]', error);
+        console.error(' [CRON ERROR]', error);
     }
 });
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(` Server running on port ${PORT}`);
 });

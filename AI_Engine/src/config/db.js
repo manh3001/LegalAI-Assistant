@@ -23,7 +23,7 @@ const pool = new sql.ConnectionPool(dbConfig);
 const poolConnect = pool.connect()
     .then(() => {
         console.log('========================================');
-        console.log(' BINGO! Đã thông tuyến TCP/IP tới SQL Server!');
+        console.log(' Đã  kết nối TCP/IP tới SQL Server!');
         console.log(' Tài khoản: sa | Cổng: 1433');
         console.log('========================================');
     })

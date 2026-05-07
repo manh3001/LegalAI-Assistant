@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-
+import usePersistedState from '../../hooks/usePersistedState';
 import {
     DocumentChartBarIcon,
     PlayIcon,
@@ -20,10 +20,10 @@ import {
 import aiClient from "../../api/aiClient";
 
 export default function AIPlanning() {
-    const [rawText, setRawText] = useState('');
+    const [rawText, setRawText] = usePersistedState('legai_plan_raw_text', '');
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
-    const [planData, setPlanData] = useState(null);
+    const [planData, setPlanData] = usePersistedState('legai_plan_data', null);
     const [isSaving, setIsSaving] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
 
@@ -45,6 +45,15 @@ export default function AIPlanning() {
     };
     const removeFile = (indexToRemove) => {
         setAttachedFiles(prev => prev.filter((_, index) => index !== indexToRemove));
+    };
+    // hàm reset toàn bộ kế hoạch để tạo mới
+    const handleNewPlan = () => {
+        if (window.confirm("Kế hoạch hiện tại sẽ bị xóa (nếu chưa Lưu hồ sơ). Bạn có chắc muốn tạo mới?")) {
+            setRawText('');
+            setPlanData(null);
+            setAttachedFiles([]);
+            setIsSaved(false);
+        }
     };
 
     const handleAnalyze = async () => {
@@ -139,13 +148,13 @@ export default function AIPlanning() {
     }, {});
     const handlePrint = () => window.print();
 
-   // Đổi biến giao diện sang chuẩn Light Mode
+    // Đổi biến giao diện sang chuẩn Light Mode
     const lightPanel = "bg-white/80 backdrop-blur-xl border border-zinc-200 shadow-sm rounded-3xl";
 
     return (
         // Đổi màu text mặc định sang Đen Than và Selection màu Vàng Đồng
         <div className="w-full h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col lg:flex-row gap-6 text-[#1A2530] selection:bg-[#B8985D]/30 selection:text-[#1A2530]">
-            
+
             {/* ========================================================= */}
             {/* CỘT TRÁI: NHẬP LIỆU */}
             {/* ========================================================= */}
@@ -161,7 +170,15 @@ export default function AIPlanning() {
                         <p className="text-xs text-zinc-500 font-medium">Agent sẽ lập kế hoạch từ đây</p>
                     </div>
                 </div>
-
+                {/* NÚT TẠO MỚI */}
+                <button
+                    onClick={handleNewPlan}
+                    title="Làm sạch để tạo kế hoạch mới"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-500 hover:text-[#B8985D] hover:bg-[#B8985D]/10 transition-colors"
+                >
+                    <ArrowPathIcon className="w-4 h-4 stroke-2" />
+                    TẠO MỚI
+                </button>
                 {/* KHU VỰC NHẬP LIỆU */}
                 <div className="flex-1 p-5 flex flex-col min-h-0 bg-white">
                     <div
@@ -247,7 +264,7 @@ export default function AIPlanning() {
             {/* CỘT PHẢI: KẾT QUẢ KANBAN */}
             {/* ========================================================= */}
             <div className={`flex-1 flex flex-col h-full ${lightPanel} overflow-hidden relative print:bg-white print:text-black print:shadow-none print:border-none`}>
-                
+
                 {/* HEADER BẢN XEM TRƯỚC */}
                 <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex justify-between items-center px-6 print:hidden">
                     <div className="flex items-center gap-3 text-[#1A2530]">
@@ -258,11 +275,10 @@ export default function AIPlanning() {
                     <div className="flex gap-3">
                         {/* NÚT LƯU HỒ SƠ */}
                         {planData && (
-                            <button onClick={handleSaveToHistory} disabled={isSaving || isSaved} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
-                                isSaved 
-                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                            <button onClick={handleSaveToHistory} disabled={isSaving || isSaved} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${isSaved
+                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                                 : 'bg-[#1A2530] hover:bg-[#B8985D] text-white border border-transparent'
-                            }`}>
+                                }`}>
                                 {isSaving ? <ArrowPathIcon className="w-4 h-4 animate-spin stroke-2" /> : <CheckCircleIcon className="w-4 h-4 stroke-2" />}
                                 {isSaving ? "ĐANG LƯU..." : isSaved ? "ĐÃ LƯU" : "LƯU KẾ HOẠCH"}
                             </button>
@@ -318,12 +334,23 @@ export default function AIPlanning() {
                                                     <div className="flex items-center gap-2">
                                                         <UserCircleIcon className="w-4 h-4 stroke-2 text-zinc-400" /> {task.assignee || "Chưa phân công"}
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <ClockIcon className="w-4 h-4 stroke-2 text-zinc-400" /> {task.deadline || "N/A"}
+
+
+                                                    <div className="flex items-center gap-2 text-[#8E6D45]">
+                                                        <ClockIcon className="w-4 h-4 stroke-2" /> {task.deadline || "N/A"}
                                                     </div>
+
+                                                    {/* Bộ chuyển dịch Trạng thái (Status Translator) */}
                                                     <div className="flex items-center gap-2">
-                                                        <span className="bg-zinc-100 border border-zinc-200 px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider text-zinc-600">
-                                                            {task.status || "Pending"}
+                                                        <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-black border ${task.status?.toLowerCase() === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                                            task.status?.toLowerCase() === 'in_progress' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                                                task.status?.toLowerCase() === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                                                                    'bg-zinc-100 text-zinc-600 border-zinc-200'
+                                                            }`}>
+                                                            {task.status?.toLowerCase() === 'pending' ? ' Chờ xử lý' :
+                                                                task.status?.toLowerCase() === 'in_progress' ? ' Đang làm' :
+                                                                    task.status?.toLowerCase() === 'completed' ? ' Đã xong' :
+                                                                        task.status || "Chưa rõ"}
                                                         </span>
                                                     </div>
                                                 </div>

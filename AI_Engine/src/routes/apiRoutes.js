@@ -25,8 +25,6 @@ router.get('/documents', documentController.getAllDocuments);
 router.get('/documents/:id', documentController.getDocumentDetail);
 router.get('/document-stats', documentController.getDocumentStats);
 
-router.post('/history/save', historyController.saveAnalysis);
-router.get('/history/:userId', historyController.getHistory);
 // ============================================================
 // NHÓM 2: KÍCH HOẠT BẢO VỆ JWT (TẤT CẢ ROUTE DƯỚI ĐÂY PHẢI CÓ TOKEN)
 // ============================================================
@@ -37,9 +35,10 @@ router.post('/ai/generate-planning', aiController.generatePlanning);
 router.post('/ai/analyze-contract', aiController.analyzeContract);
 
 // --- Lịch sử phân tích (Dành cho Member) ---
-
+router.post('/history/save-video', historyController.saveVideoAnalysis);
+router.post('/history/save', historyController.saveAnalysis);
+router.get('/history/:userId', historyController.getHistory);
 router.get('/history/detail/:id', historyController.getDetail);
 router.delete('/history/delete/:id', historyController.deleteHistory);
-
-
+router.put('/history/update/:id', historyController.updateHistory);
 module.exports = router;

@@ -2,12 +2,14 @@ const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const fs = require('fs');
 const path = require('path');
-const sql = require('mssql');
-const { pool } = require('../config/db');
+
+const { sql, pool, poolConnect } = require('../config/db');
 const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first');
 const ragService = require('../services/ragService');
 const geminiService = require('../services/geminiService');
+
+// hàm này sẽ được gọi trong aiRoutes.js khi có request POST /api/ai/ask
 exports.ask = async (req, res) => {
     try {
         const { question, message } = req.body;
@@ -17,7 +19,7 @@ exports.ask = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Vui lòng nhập câu hỏi' });
         }
 
-        console.log(`🤖 LegAI nhận câu hỏi: "${userQuery}"`);
+        console.log(` LegAI nhận câu hỏi: "${userQuery}"`);
 
         let relatedDocs = [];
         try {
@@ -26,8 +28,9 @@ exports.ask = async (req, res) => {
             console.error(' Lỗi RAG (sẽ trả lời bằng kiến thức chung):', err.message);
         }
 
+        // Gọi sang GeminiService 
         const answer = await geminiService.generateAnswerWithGemini(userQuery, relatedDocs);
-
+        
         return res.json({
             success: true,
             answer,
@@ -37,7 +40,7 @@ exports.ask = async (req, res) => {
             }))
         });
     } catch (error) {
-        console.error('❌ Lỗi Chat Controller:', error);
+        console.error(' Lỗi Chat Controller:', error);
         return res.status(500).json({
             success: false,
             message: 'LegAI đang gặp sự cố, vui lòng thử lại sau.',
@@ -45,7 +48,6 @@ exports.ask = async (req, res) => {
         });
     }
 };
-
 
 // ==============================================================================
 // CAC HAM PHU TRO XU LY DU LIEU (DAT NGOAI EXPORTS)
@@ -302,10 +304,18 @@ exports.generateForm = async (req, res) => {
             return res.status(400).json({ error: "Thiếu nội dung chat" });
         }
 
-        console.log("📥 Đang nhận yêu cầu tạo Form từ Frontend:", text);
+        console.log(" Đang nhận yêu cầu tạo Form từ Frontend:", text);
 
+        //  GỌI PINECONE (RAG) ĐỂ LẤY LUẬT MỚI NHẤT DỰA VÀO CÂU HỎI USER
+        let relatedDocs = [];
+        try {
+            relatedDocs = await ragService.query(text);
+            console.log(` Đã tìm thấy ${relatedDocs.length} tài liệu luật liên quan để đắp vào Form.`);
+        } catch (err) {
+            console.error('Lỗi RAG khi tạo Form:', err.message);
+        }
         // Gọi thẳng Service, nhường toàn bộ não bộ (Prompt) cho Service lo
-        const aiData = await geminiService.generateForm(text, history);
+        const aiData = await geminiService.generateForm(text, history, relatedDocs);
 
         console.log(" AI đã bóc tách xong, chuẩn bị gửi về Frontend!");
         res.json(aiData);
@@ -357,33 +367,9 @@ exports.generatePlanning = async (req, res) => {
             return res.status(400).json({ error: "Vui lòng nhập nội dung hoặc upload file để lập kế hoạch!" });
         }
 
-        // 2. Xây dựng chỉ thị cho AI
-        // TRONG aiController.js
-        const finalInstructions = `
-        Bạn là một Luật sư AI chuyên nghiệp (LegAI) kiêm Chuyên gia Quản trị Dự án. 
-        Hãy phân tích hồ sơ và lập kế hoạch thực thi pháp lý chi tiết.
-        Nội dung: """${combinedText}"""
 
-        YÊU CẦU NGHIÊM NGẶT:
-        1. Phải chia thành ít nhất 3-4 giai đoạn (Phases) theo trình tự thời gian.
-        2. Tên giai đoạn phải NHỎ GỌN (VD: "Chuẩn bị", "Triển khai", "Nghiệm thu"). KHÔNG ghi lặp lại chữ "Giai đoạn 1, 2, 3...".
-        3. Phải tạo ra TỐI THIỂU 7 đến 10 nhiệm vụ (tasks) chi tiết, rải đều cho các giai đoạn tùy độ phức tạp của hồ sơ.
-
-        Yêu cầu output JSON (BẮT BUỘC):
-        [
-            {
-                "id": 1,
-                "phase": "Chuẩn bị", 
-                "title": "Tên nhiệm vụ hành động cụ thể",
-                "legal_notes": "Phân tích rủi ro pháp lý và căn cứ luật (Ví dụ: Nghị định 13/2023, BLDS...)",
-                "assignee": "Người phụ trách",
-                "deadline": "Thời gian (VD: 05/04/2026)",
-                "status": "pending"
-            }
-        ]
-        Lưu ý: Trả về JSON thuần túy, không markdown.`;
         // Truyền finalInstructions vào Service
-        const planningResult = await geminiService.generatePlan(finalInstructions);
+        const planningResult = await geminiService.generatePlan(combinedText);
 
         // . LƯU VÀO SQL SERVER 
         try {
@@ -434,11 +420,10 @@ exports.generatePlanning = async (req, res) => {
                 fs.unlinkSync(fp);
             }
         });
-        if (filePaths.length > 0) console.log("🧹 Đã dọn dẹp các file tạm.");
+        if (filePaths.length > 0) console.log(" Đã dọn dẹp các file tạm.");
     }
 };
 // ==============================================================================
-
 /// 5.   THẨM ĐỊNH VIDEO (YOUTUBE TRANSCRIPT + LEGAL AUDIT)
 // ============================================================================
 exports.analyzeVideo = async (req, res) => {
@@ -446,58 +431,177 @@ exports.analyzeVideo = async (req, res) => {
     const userId = req.user ? req.user.id : 1;
 
     if (!videoUrl || typeof videoUrl !== 'string' || !videoUrl.trim()) {
-        return res.status(400).json({ success: false, error: "Vui lòng nhập URL YouTube của video." });
+        return res.status(400).json({
+            success: false,
+            error: "Vui lòng nhập URL YouTube của video."
+        });
     }
 
     try {
-        console.log(`📡 Phân tích video YouTube: ${videoUrl}`);
-        
-        const aiData = await geminiService.analyzeVideo(videoUrl);
-        const videoTitle = aiData.title || videoUrl;
+        await poolConnect;
 
-        const saveRequest = pool.request();
-        saveRequest.input('UserId', sql.Int, userId);
-        saveRequest.input('Url', sql.NVarChar(500), videoUrl);
-        saveRequest.input('Title', sql.NVarChar(500), videoTitle);
-        // Ưu tiên raw_transcript nếu có để lưu đúng nguyên văn lời thoại
-        saveRequest.input('Transcript', sql.NVarChar(sql.MAX), aiData.raw_transcript || aiData.transcript || null);
-        saveRequest.input('Summary', sql.NVarChar(sql.MAX), aiData.summary || aiData.analysis_report || null);
-        saveRequest.input('LegalBases', sql.NVarChar(sql.MAX), JSON.stringify(aiData.legalBases || aiData.legal_map || []));
-        saveRequest.input('TrustScore', sql.Int, aiData.trustScore || aiData.audit_metrics?.trust_score || 0);
-        saveRequest.input('AnalysisJson', sql.NVarChar(sql.MAX), JSON.stringify(aiData));
-        
-        // THÊM BIẾN AI MODEL DYNAMIC
-        saveRequest.input('AIModel', sql.NVarChar(50), 'Gemini-Dynamic-Fallback');
+        // =============================
+        // 1. CHECK CACHE
+        // =============================
+        const checkRequest = pool.request();
+        checkRequest.input('Url', sql.NVarChar(500), videoUrl);
 
-        await saveRequest.query(`
-            INSERT INTO VideoHistory (UserId, VideoUrl, Title, Transcript, Summary, LegalBases, TrustScore, AIModel, CreatedAt)
-            VALUES (@UserId, @Url, @Title, @Transcript, @Summary, @LegalBases, @TrustScore, @AIModel, GETDATE())
+        const existing = await checkRequest.query(`
+            SELECT TOP 1 * FROM VideoHistory WHERE VideoUrl = @Url
         `);
 
-        await saveRequest.query(`
-            INSERT INTO ContractHistory (UserId, RecordType, Title, Folder, AnalysisText, AnalysisJson, RiskScore, AIModel, CreatedAt, IsFinal)
-            VALUES (@UserId, 'VIDEO_ANALYSIS', @Title, N'Phân tích Video', @Summary, @AnalysisJson, @TrustScore, @AIModel, GETDATE(), 1)
-        `);
+        if (existing.recordset.length > 0) {
+            const video = existing.recordset[0];
 
-        console.log(" Phân tích video hoàn tất và lưu vào SQL Server.");
-        res.json({ success: true, data: { transcript: aiData.transcript, ...aiData, Title: videoTitle } });
+            console.log("🧠 Cache hit");
 
-    } catch (error) {
-        const errorMsg = error.response?.data?.message || error.message;
-        console.error("Lỗi Video Analysis:", errorMsg);
+            //  UPDATE USAGE (SMART CACHE)
+            const updateRequest = pool.request();
+            updateRequest.input('Id', sql.Int, video.Id);
 
-        //  Phân loại lỗi để Frontend không bị Crash (500)
-        if (errorMsg.includes("Impossible to retrieve") || errorMsg.includes("YoutubeTranscript") || errorMsg.includes("No captions")) {
-            return res.status(400).json({
-                success: false,
-                error: "Video này không có phụ đề tự động (CC) hoặc Link không hợp lệ. Hệ thống cần phụ đề để phân tích."
+            await updateRequest.query(`
+                UPDATE VideoHistory
+                SET 
+                    LastAccessedAt = GETDATE(),
+                    AccessCount = ISNULL(AccessCount, 0) + 1
+                WHERE Id = @Id
+            `);
+
+            return res.json({
+                success: true,
+                fromCache: true,
+                data: JSON.parse(video.AnalysisJson)
             });
         }
 
-        // Nếu lỗi thực sự nghiêm trọng thì mới báo 500
-        res.status(500).json({
+        // =============================
+        // 2. CALL AI
+        // =============================
+        console.log(`📡 Phân tích video: ${videoUrl}`);
+
+        const aiData = await geminiService.analyzeVideo(videoUrl);
+        const videoTitle = aiData.title || videoUrl;
+
+        // =============================
+        // 3. SAVE CACHE (VideoHistory)
+        // =============================
+        const saveRequest = pool.request();
+
+        saveRequest.input('UserId', sql.Int, userId);
+        saveRequest.input('Url', sql.NVarChar(500), videoUrl);
+        saveRequest.input('Title', sql.NVarChar(500), videoTitle);
+        saveRequest.input('Transcript', sql.NVarChar(sql.MAX),
+            aiData.raw_transcript || aiData.transcript || null);
+        saveRequest.input('Summary', sql.NVarChar(sql.MAX),
+            aiData.summary || aiData.analysis_report || null);
+        saveRequest.input('LegalBases', sql.NVarChar(sql.MAX),
+            JSON.stringify(aiData.legalBases || aiData.legal_map || []));
+        saveRequest.input('TrustScore', sql.Int,
+            aiData.trustScore || aiData.audit_metrics?.trust_score || 0);
+        saveRequest.input('AnalysisJson', sql.NVarChar(sql.MAX),
+            JSON.stringify(aiData));
+        saveRequest.input('AIModel', sql.NVarChar(50),
+            'Gemini-Dynamic-Fallback');
+
+        //  SMART CACHE FIELDS
+        saveRequest.input('LastAccessedAt', sql.DateTime, new Date());
+        saveRequest.input('AccessCount', sql.Int, 1);
+
+        await saveRequest.query(`
+            INSERT INTO VideoHistory 
+            (UserId, VideoUrl, Title, Transcript, Summary, LegalBases, TrustScore, AnalysisJson, AIModel, LastAccessedAt, AccessCount, CreatedAt)
+            VALUES 
+            (@UserId, @Url, @Title, @Transcript, @Summary, @LegalBases, @TrustScore, @AnalysisJson, @AIModel, @LastAccessedAt, @AccessCount, GETDATE())
+        `);
+
+        // =============================
+        // 4. CLEANUP TOP N CACHE
+        // =============================
+        await pool.request().query(`
+            DELETE FROM VideoHistory
+            WHERE Id NOT IN (
+                SELECT TOP (500) Id 
+                FROM VideoHistory
+                ORDER BY LastAccessedAt DESC
+            )
+        `);
+
+        // =============================
+        // 5. SOCKET REALTIME
+        // =============================
+        if (global.io) {
+            global.io.emit('new_activity', {
+                FeatureName: 'VIDEO_ANALYSIS'
+            });
+        }
+
+        console.log(" Video analyzed & cached");
+
+        return res.json({
+            success: true,
+            fromCache: false,
+            data: { ...aiData, Title: videoTitle }
+        });
+
+    } catch (error) {
+
+        const errorMsg = error.message;
+
+        console.error("Video Analysis Error:", errorMsg);
+
+        // =============================
+        // 🛡️ HANDLE DUPLICATE KEY
+        // =============================
+        if (errorMsg.includes("UNIQUE KEY")) {
+
+            console.log("Duplicate detected → fallback cache");
+
+            try {
+                const fallback = await pool.request()
+                    .input('Url', sql.NVarChar(500), videoUrl)
+                    .query(`SELECT TOP 1 * FROM VideoHistory WHERE VideoUrl = @Url`);
+
+                if (fallback.recordset.length > 0) {
+
+                    const video = fallback.recordset[0];
+
+                    // update usage luôn
+                    await pool.request()
+                        .input('Id', sql.Int, video.Id)
+                        .query(`
+                            UPDATE VideoHistory
+                            SET LastAccessedAt = GETDATE(),
+                                AccessCount = ISNULL(AccessCount, 0) + 1
+                            WHERE Id = @Id
+                        `);
+
+                    return res.json({
+                        success: true,
+                        fromCache: true,
+                        data: JSON.parse(video.AnalysisJson)
+                    });
+                }
+            } catch (e) {
+                console.error("Fallback error:", e.message);
+            }
+        }
+
+        // =============================
+        // ERROR YOUTUBE
+        // =============================
+        if (errorMsg.includes("Impossible to retrieve") ||
+            errorMsg.includes("YoutubeTranscript") ||
+            errorMsg.includes("No captions")) {
+
+            return res.status(400).json({
+                success: false,
+                error: "Video không có phụ đề hoặc link không hợp lệ."
+            });
+        }
+
+        return res.status(500).json({
             success: false,
-            error: "Hệ thống AI đang bận hoặc quá tải. Vui lòng thử lại sau ít phút."
+            error: "AI đang bận, thử lại sau."
         });
     }
 };
