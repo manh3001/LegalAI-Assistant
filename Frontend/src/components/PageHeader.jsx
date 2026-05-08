@@ -33,14 +33,28 @@ export default function PageHeader() {
     const isHomePage = location.pathname === "/";
 
     useEffect(() => {
-        setIsLoggedIn(!!localStorage.getItem("accessToken"));
-        const userStr = localStorage.getItem("user");
-        if (userStr) {
-            try {
-                const u = JSON.parse(userStr);
-                setUserName(u?.fullName || u?.name || u?.email || "Người dùng");
-            } catch (e) { setUserName(userStr); }
-        }
+        const syncUser = () => {
+            setIsLoggedIn(!!localStorage.getItem("accessToken"));
+            const userStr = localStorage.getItem("user");
+            if (userStr) {
+                try {
+                    const u = JSON.parse(userStr);
+                    setUserName(u?.fullName || u?.name || u?.email || "Người dùng");
+                } catch (e) {
+                    setUserName(userStr);
+                }
+            } else {
+                setUserName("");
+            }
+        };
+
+        syncUser();
+        window.addEventListener('storage', syncUser);
+        window.addEventListener('user:update', syncUser);
+        return () => {
+            window.removeEventListener('storage', syncUser);
+            window.removeEventListener('user:update', syncUser);
+        };
     }, []);
 
     // Tự động đóng mọi Modal/Menu khi chuyển trang
@@ -235,7 +249,7 @@ export default function PageHeader() {
                                         )}
 
                                         {isLoggedIn && (
-<button onClick={() => { navigate("/tai-khoan"); setIsMenuOpen(false); }} className="w-full text-left px-5 py-3 text-[13px] font-bold text-zinc-600 hover:bg-zinc-50 hover:text-[#B8985D] transition-colors flex items-center gap-3">
+                                            <button onClick={() => { navigate("/tai-khoan"); setIsMenuOpen(false); }} className="w-full text-left px-5 py-3 text-[13px] font-bold text-zinc-600 hover:bg-zinc-50 hover:text-[#B8985D] transition-colors flex items-center gap-3">
                                                 <UserIcon className="h-5 w-5 stroke-2" /> Hồ sơ cá nhân
                                             </button>
                                         )}
@@ -260,7 +274,7 @@ export default function PageHeader() {
                 </div>
             </div>
 
-            {/* SỬ DỤNG PORTAL ĐỂ ĐƯA MODAL RA NGOÀI HEADER - GIÚP CĂN GIỮA TUYỆT ĐỐI */}
+            {/* Modal xác thực */}
             {typeof document !== 'undefined' && createPortal(
                 <AnimatePresence>
                     {showAuthModal && (

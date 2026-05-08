@@ -164,8 +164,20 @@ exports.updateProfile = async (req, res) => {
     `;
 
     const updateResult = await updateRequest.query(updateSql);
-    const updatedUser = updateResult.recordset[0];
+    const rawUser = updateResult.recordset[0];
+    // format lại tên trường trả về cho frontend dễ dùng hơn (camelCase)
+    const updatedUser = {
+      id: rawUser.Id,
+      email: rawUser.Email,
+      role: rawUser.Role,
+      fullName: rawUser.FullName 
+    };
 
+    return res.json({
+      success: true,
+      message: 'Thông tin hồ sơ đã được cập nhật.',
+      user: updatedUser
+    });
     return res.json({ success: true, message: 'Thông tin hồ sơ đã được cập nhật.', user: updatedUser });
   } catch (err) {
     console.error('Auth UpdateProfile Error:', err);
