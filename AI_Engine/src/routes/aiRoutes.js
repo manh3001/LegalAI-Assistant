@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const aiController = require('../controllers/aiController');
+const lawyerController = require('../controllers/lawyerController');
 const multer = require('multer');
 const path = require('path');
 
@@ -24,5 +25,9 @@ router.post('/generate-form', aiController.generateForm);
 
 // 5. Phân tích Video
 router.post('/analyze-video', aiController.analyzeVideo);
+
+// 6. Luật sư
+router.get('/lawyers', lawyerController.getLawyers);
+router.get('/lawyers/random', lawyerController.getRandomLawyer);
 
 module.exports = router;

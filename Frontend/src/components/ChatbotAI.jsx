@@ -13,6 +13,7 @@ import {
     CheckBadgeIcon
 } from '@heroicons/react/24/outline';
 import aiClient from '../api/aiClient';
+import LawyerCard from './LawyerCard';
 
 export default function ChatbotAI({ isOpen, onClose }) {
     const [messages, setMessages] = useState([]);
@@ -219,51 +220,43 @@ export default function ChatbotAI({ isOpen, onClose }) {
       
         className="fixed bottom-24 right-4 md:right-8 w-[95vw] md:w-[420px] h-[min(600px,75vh)] z-[101] flex flex-col pointer-events-auto"
     >
-        <div className="flex-grow flex flex-col overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0a0a0a]/95 backdrop-blur-3xl shadow-[0_20px_80px_rgba(0,0,0,0.4)]">
+        <div className="flex-grow flex flex-col overflow-hidden rounded-[2.5rem] border border-slate-200 bg-white/95 backdrop-blur-3xl shadow-[0_20px_40px_rgba(15,23,42,0.08)]">
 
             {/* HEADER  */}
-            <div className="p-5 border-b border-white/10 bg-white/5 shrink-0">
+            <div className="p-5 border-b border-slate-200 bg-slate-50 shrink-0">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-cyan-500/20">
+                        <div className="p-2 rounded-xl bg-sky-500/15">
                             <CpuChipIcon className="w-5 h-5 text-cyan-400" />
                         </div>
-                        <h3 className="text-[10px] font-black text-white tracking-[0.3em] uppercase">LegAI Assistant</h3>
+                        <h3 className="text-[10px] font-black text-slate-900 tracking-[0.3em] uppercase">LegAI Assistant</h3>
                     </div>
                     
                     <div className="flex items-center gap-2">
                         {messages.length > 1 && (
                             <button 
                                 onClick={handleSaveChat}
-                                className="p-2 rounded-xl text-gray-400 hover:text-cyan-400 hover:bg-white/5 transition-all"
+                                className="p-2 rounded-xl text-slate-500 hover:text-sky-600 hover:bg-slate-100 transition-all"
                             >
                                 <CloudArrowUpIcon className="w-5 h-5" />
                             </button>
                         )}
-                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-gray-500 transition-colors">
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
                             <XMarkIcon className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
 
                 {/* SWITCHER */}
-                <div className="flex bg-black/50 p-1 rounded-xl border border-white/5 relative h-10">
-                    <motion.div
-                        className="absolute bg-cyan-500/10 border border-cyan-500/40 rounded-lg"
-                        animate={{ x: chatMode === 'ai' ? 0 : '100%' }}
-                        style={{ top: 4, bottom: 4, left: 4, width: 'calc(50% - 8px)' }}
-                    />
-                    <button onClick={() => setChatMode('ai')} className={`flex-1 flex items-center justify-center gap-2 text-[10px] font-black z-10 transition-all ${chatMode === 'ai' ? 'text-cyan-400' : 'text-gray-600'}`}>
+                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 relative h-10">
+                    <button className="flex-1 flex items-center justify-center gap-2 text-[10px] font-black text-sky-600 z-10">
                         <SparklesIcon className="w-3.5 h-3.5" /> AI CONSULTANT
-                    </button>
-                    <button onClick={() => setChatMode('human')} className={`flex-1 flex items-center justify-center gap-2 text-[10px] font-black z-10 transition-all ${chatMode === 'human' ? 'text-cyan-400' : 'text-gray-600'}`}>
-                        <UserIcon className="w-3.5 h-3.5" /> LAWYER MODE
                     </button>
                 </div>
             </div>
 
             {/* CHAT BODY - Vùng này sẽ tự cuộn độc lập */}
-            <div className="flex-1 p-6 overflow-y-auto space-y-4 custom-scrollbar bg-black/20 overscroll-contain">
+            <div className="flex-1 p-6 overflow-y-auto space-y-4 custom-scrollbar bg-slate-50 overscroll-contain">
                 <AnimatePresence mode='popLayout'>
                     {messages.map((msg) => (
                         <motion.div
@@ -274,16 +267,20 @@ export default function ChatbotAI({ isOpen, onClose }) {
                         >
                             <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                                 msg.isBot 
-                                ? 'bg-white/5 text-gray-300 rounded-tl-none border border-white/10' 
-                                : 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white rounded-tr-none shadow-lg shadow-cyan-900/20'
+                                ? 'bg-slate-100 text-slate-900 rounded-tl-none border border-slate-200' 
+                                : 'bg-gradient-to-br from-sky-600 to-blue-600 text-white rounded-tr-none shadow-lg shadow-sky-200/40'
                             }`}>
                                
                                 {msg.isBot ? (
-                                    <div className="prose prose-invert max-w-none text-sm break-words markdown-chat">
-                                        <ReactMarkdown>
-                                            {formatAIMessage(msg.text)}
-                                        </ReactMarkdown>
-                                    </div>
+                                    msg.text.replace(/"/g, '').trim() === "[CONTACT_LAWYER]" ? (
+                                        <LawyerCard />
+                                    ) : (
+                                        <div className="prose max-w-none text-sm break-words markdown-chat">
+                                            <ReactMarkdown>
+                                                {formatAIMessage(msg.text)}
+                                            </ReactMarkdown>
+                                        </div>
+                                    )
                                 ) : (
                                     <div className="whitespace-pre-wrap break-words">{msg.text}</div>
                                 )}
@@ -291,13 +288,13 @@ export default function ChatbotAI({ isOpen, onClose }) {
                         </motion.div>
                     ))}
                 </AnimatePresence>
-                {isLoading && <div className="text-[10px] text-cyan-500/60 font-black animate-pulse px-2 uppercase">Processing...</div>}
+                {isLoading && <div className="text-[10px] text-sky-600/70 font-black animate-pulse px-2 uppercase">Processing...</div>}
                 <div ref={messagesEndRef} />
             </div>
 
             {/* INPUT AREA */}
-            <form onSubmit={handleSend} className="p-5 bg-black/40 border-t border-white/10 shrink-0">
-                <div className="relative flex items-end gap-2 bg-white/5 border border-white/10 rounded-3xl px-4 py-2 focus-within:border-cyan-500/40 transition-all">
+            <form onSubmit={handleSend} className="p-5 bg-slate-50 border-t border-slate-200 shrink-0">
+                <div className="relative flex items-end gap-2 bg-white border border-slate-200 rounded-3xl px-4 py-2 focus-within:border-sky-500/40 transition-all">
                     <textarea
                         ref={textareaRef}
                         rows={1}
@@ -305,12 +302,12 @@ export default function ChatbotAI({ isOpen, onClose }) {
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Hỏi LegAI..."
-                        className="flex-grow py-3 bg-transparent text-sm text-white outline-none resize-none scrollbar-hide max-h-[100px]"
+                        className="flex-grow py-3 bg-transparent text-sm text-slate-900 outline-none resize-none scrollbar-hide max-h-[100px]"
                     />
                     <button
                         type="submit"
                         disabled={!input.trim() || isLoading}
-                        className={`mb-2 p-2 rounded-xl transition-all ${!input.trim() || isLoading ? 'text-gray-700' : 'text-cyan-400'}`}
+                        className={`mb-2 p-2 rounded-xl transition-all ${!input.trim() || isLoading ? 'text-slate-400' : 'text-sky-600'}`}
                     >
                         <PaperAirplaneIcon className="w-6 h-6 -rotate-45" />
                     </button>

@@ -41,5 +41,15 @@ router.post('/ai/analyze-contract', aiController.analyzeContract);
 router.get('/history/detail/:id', historyController.getDetail);
 router.delete('/history/delete/:id', historyController.deleteHistory);
 
+// NEW ROUTES: Luật của tôi & Vừa xem gần đây (Không dùng authenticateToken)
+// Lấy danh sách luật đã lưu cho một người dùng cụ thể
+router.get('/user/saved-laws/:userId', historyController.getSavedLaws);
+router.post('/user/toggle-saved-law', historyController.toggleSavedLaw); 
+router.delete('/user/remove-saved-law', historyController.removeSavedLaw); 
+
+// Lấy danh sách tài liệu vừa xem gần đây cho một người dùng cụ thể
+router.get('/user/recent-docs/:userId', historyController.getRecentDocs);
+router.post('/user/add-recent-doc', historyController.addRecentDoc); 
+router.delete('/user/remove-recent-doc', historyController.removeRecentDoc); 
 
 module.exports = router;
