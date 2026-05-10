@@ -37,20 +37,11 @@ export default function EditRecordPage() {
     const fetchDetail = async () => {
       setLoading(true);
       try {
-        let res;
-
-        if (USE_MOCK_DATA) {
-          console.log("🔍 Sử dụng MOCK DATA cho ID:", id);
-          res = { data: getMockDetailResponse(id) };
-        } else {
-          const token = localStorage.getItem("accessToken");
-          res = await axios.get(
-            `http://localhost:8000/api/history/detail/${id}`,
-            {
-              headers: token ? { Authorization: `Bearer ${token}` } : {},
-            },
-          );
-        }
+        const token = localStorage.getItem("accessToken");
+        const res = await axios.get(
+          `http://localhost:8000/api/history/detail/${id}`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
 
         if (res.data?.success) {
           const normalized = normalizeRecord(res.data.data);
@@ -70,10 +61,8 @@ export default function EditRecordPage() {
         setLoading(false);
       }
     };
-
     fetchDetail();
   }, [id]);
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -89,25 +78,23 @@ export default function EditRecordPage() {
     try {
       const token = localStorage.getItem("accessToken");
       const payload = {
-        ...formData,
-        Id: id,
+        name: formData.name,
+        description: formData.description
       };
 
-      // Mô phỏng gọi API PATCH
-      if (USE_MOCK_DATA) {
-        console.log("🔍 Mock PATCH:", payload);
-        await new Promise((resolve) => setTimeout(resolve, 800));
-      } else {
-        await axios.patch(`http://localhost:8000/api/history/${id}`, payload, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-      }
+      const res = await axios.put(`http://localhost:8000/api/history/update/${id}`, payload, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
 
-      toast.success("Lưu thay đổi thành công!");
-      setTimeout(() => navigate(`/ho-so/chi-tiet/${id}`), 1000);
+      if (res.data?.success) {
+        toast.success("Lưu thay đổi thành công!");
+        setTimeout(() => navigate(`/ho-so/chi-tiet/${id}`), 1000);
+      } else {
+        toast.error(res.data?.message || "Lưu thất bại.");
+      }
     } catch (error) {
       console.error("Save error:", error);
-      toast.error(error.response?.data?.message || "Lỗi lưu hồ sơ.");
+      toast.error(error.response?.data?.message || "Lỗi kết nối đến máy chủ.");
     } finally {
       setSaving(false);
     }

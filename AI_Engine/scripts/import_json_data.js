@@ -22,17 +22,52 @@ const toAsciiId = (str) => {
         .replace(/[^a-zA-Z0-9_-]/g, "-"); // Chỉ giữ lại chữ không dấu, số, gạch nối
 };
 
-const cleanMarkdown = (text) => {
+
+
+const cleanLegalContent = (text) => {
     if (!text) return "";
-    return text.replace(/<br>/gi, '\n')
-        .replace(/\| --- \|/g, '')
-        .replace(/\|/g, '')
-        .replace(/(\*\*|\*|#|__|_)/g, '')
-        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
+
+    // 1. Loại bỏ các cụm từ tiếng Anh giao diện phổ biến (Blacklist)
+    const uiNoise = [
+        /Sign in/gi, /Download/gi, /Related Documents/gi,
+        /Feedback/gi, /Search/gi, /View more/gi, /Print/gi
+    ];
+    let cleaned = text;
+    uiNoise.forEach(regex => {
+        cleaned = cleaned.replace(regex, "");
+    });
+
+    // 2. Loại bỏ các chú thích Footnote (dạng [1], [[1]], [^1])
+    cleaned = cleaned.replace(/\[+?\d+\]+/g, "");
+
+    // 3. Xử lý nội dung lặp lại (Deduplication)
+    // Chia văn bản thành các đoạn lớn, nếu đoạn sau giống hệt đoạn trước thì bỏ qua
+    const paragraphs = cleaned.split('\n\n');
+    const uniqueParagraphs = paragraphs.filter((item, index) => paragraphs.indexOf(item) === index);
+    cleaned = uniqueParagraphs.join('\n\n');
+
+    return cleaned;
 };
 
+
+const cleanMarkdown = (text) => {
+    if (!text) return "";
+
+    let cleaned = text
+        .replace(/<br\s*\/?>/gi, '\n') // Xử lý mọi biến thể của thẻ <br>
+        .replace(/\|(\s*-+\s*\|)+/g, '') // Xóa các dòng phân cách bảng | --- | --- |
+        .replace(/\|/g, ' ') // Thay dấu gạch đứng bảng bằng khoảng trắng để giữ ngữ nghĩa text
+        .replace(/(\*\*|\*|#|__|_|`)/g, '') // Xóa định dạng Markdown
+        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Giữ lại text trong link, xóa URL
+        .replace(/\\/g, '') // Xóa các ký tự escape dư thừa
+        .replace(/\n{3,}/g, '\n\n') // Thu gọn các dòng trống thừa
+        .trim();
+
+    // Gọi hàm lọc nhiễu đã viết ở trên
+    cleaned = cleanLegalContent(cleaned);
+
+    return cleaned;
+};
 const smartChunk = (content) => {
     if (!content) return [];
     const chunks = [];
@@ -56,11 +91,11 @@ const importData = async () => {
         console.log("⏳ Bắt đầu kết nối Database...");
         await poolConnect;
 
-        const dataPath = path.join(__dirname, '../data', 'raw_data.json');
+        const dataPath = path.join(__dirname, '../data', 'data_200.json');
         const rawData = fs.readFileSync(dataPath, 'utf8');
         const laws = JSON.parse(rawData);
 
-        console.log(`📂 Đã tải ${laws.length} văn bản từ raw_data.json.`);
+        console.log(`📂 Đã tải ${laws.length} văn bản từ data_200.json.`);
         const indexName = process.env.PINECONE_INDEX_NAME || 'legai-index';
         const index = pc.index(indexName);
 
@@ -99,7 +134,10 @@ const importData = async () => {
             }
 
             const cleanContent = cleanMarkdown(law.content);
-
+            if (cleanContent.length < 100) {
+                console.log(`⚠️ Văn bản ${docId} có nội dung quá ngắn sau khi lọc. Bỏ qua.`);
+                continue;
+            }
             // BƯỚC A: LƯU VÀO SQL SERVER (Chỉ chạy nếu chưa có dòng nào trong DB)
             if (shouldInsertSQL) {
                 console.log(`💾 Đang lưu mới vào SQL Server...`);

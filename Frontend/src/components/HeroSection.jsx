@@ -174,10 +174,10 @@ export default function HeroSection() {
                             WELCOME TO
                         </motion.span>
 
-                        {/* Dòng 2: LEGAI - Font Serif sang trọng + Màu vàng đồng Gold Agency */}
+                        {/* Dòng 2: LEGAL - Font Serif sang trọng + Màu vàng đồng Gold Agency */}
                         <motion.h1
                             variants={fadeUpItem}
-                            style={{ fontFamily: "'Playfair Display', serif" }} // Dùng font có chân cho chữ LEGAI
+                            style={{ fontFamily: "'Playfair Display', serif" }} // Dùng font có chân cho chữ LEGAL
                             className="text-6xl md:text-8xl lg:text-[9vw] font-semibold tracking-tighter leading-none"
                         >
                             <span
@@ -189,7 +189,7 @@ export default function HeroSection() {
                                     filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
                                 }}
                             >
-                                LEGAI
+                                LEGAL
                             </span>
                         </motion.h1>
                     </motion.div>

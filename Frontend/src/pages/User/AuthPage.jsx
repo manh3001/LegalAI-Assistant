@@ -96,15 +96,27 @@ export default function AuthPage() {
                     const userRole = res.data.user.role;
                     if (userRole) localStorage.setItem("userRole", userRole);
 
+                    // =========================================================
+                    // LUỒNG REDIRECT KIỂM TRA TRANG ĐÍCH
+                    // =========================================================
+                    const params = new URLSearchParams(window.location.search);
+                    const redirectPath = params.get("redirect");
+
                     if (userRole === "ADMIN") {
                         window.location.href = "/admin/dashboard";
+                    } else if (redirectPath) {
+                        // Giải mã URL và quay lại trang người dùng đang xem dở
+                        window.location.href = decodeURIComponent(redirectPath);
                     } else {
                         window.location.href = "/";
                     }
+                    // =========================================================
+
                 } else {
                     setErrorMessage(res.data?.message || "Đăng nhập thất bại.");
                 }
-            } else if (mode === "REGISTER") {
+            }
+            else if (mode === "REGISTER") {
                 const { fullName, email, password } = form;
                 if (!fullName || !email || !password) {
                     setErrorMessage("Vui lòng điền đầy đủ thông tin.");
@@ -264,11 +276,10 @@ export default function AuthPage() {
                             )}
 
                             {errorMessage && (
-                                <div className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
-                                    errorMessage.includes("thành công") || errorMessage.includes("đã được gửi")
-                                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                        : "border-red-200 bg-red-50 text-red-600"
-                                }`}>
+                                <div className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${errorMessage.includes("thành công") || errorMessage.includes("đã được gửi")
+                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                    : "border-red-200 bg-red-50 text-red-600"
+                                    }`}>
                                     {errorMessage}
                                 </div>
                             )}

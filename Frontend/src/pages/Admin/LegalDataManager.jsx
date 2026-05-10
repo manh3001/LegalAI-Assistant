@@ -156,15 +156,30 @@ export default function LegalDataManager() {
 
     const handleUpdate = async (e) => {
         e.preventDefault();
-        if (!formData.title.trim() || !formData.content.trim()) {
-            alert('Vui lòng điền đầy đủ tiêu đề và nội dung!');
+        
+        // 1. Nới lỏng Validation: Chỉ bắt buộc Tiêu đề, cho phép sửa mỗi Category
+        if (!formData.title.trim()) {
+            alert('Tiêu đề văn bản không được để trống!');
             return;
         }
 
         setModalLoading(true);
         try {
             const token = localStorage.getItem('accessToken');
-            const response = await axios.put(`${API_BASE}/${selectedDoc.Id}`, formData, {
+            
+            // 2. Full Update: Bắt nguyên cục Form State gửi đi (Đã tự động gồm Title, Category, v.v...)
+            const payload = {
+                title: formData.title,
+                documentNumber: formData.documentNumber,
+                issueYear: formData.issueYear,
+                category: formData.category || 'Lĩnh vực khác', // Default an toàn
+                status: formData.status,
+                sourceUrl: formData.sourceUrl,
+                content: formData.content // Gửi luôn nội dung cũ/mới nếu có
+            };
+
+            // 3. Gọi PUT Method để ghi đè xuống DB
+            const response = await axios.put(`${API_BASE}/${selectedDoc.Id}`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -495,7 +510,7 @@ export default function LegalDataManager() {
                                             onChange={handleFormChange}
                                             className="w-full bg-gray-50 border border-gray-200 text-gray-900 px-3 py-2 rounded-xl outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
                                             placeholder="Ví dụ: Điều 117. Điều kiện có hiệu lực của giao dịch dân sự"
-                                            required
+                                            
                                         />
                                     </div>
                                     <div>
@@ -624,7 +639,7 @@ export default function LegalDataManager() {
                                             value={formData.title}
                                             onChange={handleFormChange}
                                             className="w-full bg-gray-50 border border-gray-200 text-gray-900 px-3 py-2 rounded-xl outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-                                            required
+                                           
                                         />
                                     </div>
                                     <div>
@@ -700,7 +715,7 @@ export default function LegalDataManager() {
                                         onChange={handleFormChange}
                                         rows={8}
                                         className="w-full bg-gray-50 border border-gray-200 text-gray-900 px-3 py-2 rounded-xl outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-                                        required
+                                        
                                     />
                                 </div>
 

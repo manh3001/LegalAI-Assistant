@@ -8,7 +8,7 @@ const { authMiddleware } = require('../middleware/authMiddleware');
 const documentController = require('../controllers/documentController');
 const authController = require('../controllers/authController');
 const historyController = require('../controllers/historyController');
-const aiController = require('../controllers/aiController'); 
+const aiController = require('../controllers/aiController');
 
 // ============================================================
 // NHÓM 1: ROUTES CÔNG KHAI (KHÔNG CẦN LOGIN)
@@ -25,8 +25,6 @@ router.get('/documents', documentController.getAllDocuments);
 router.get('/documents/:id', documentController.getDocumentDetail);
 router.get('/document-stats', documentController.getDocumentStats);
 
-router.post('/history/save', historyController.saveAnalysis);
-router.get('/history/:userId', historyController.getHistory);
 // ============================================================
 // NHÓM 2: KÍCH HOẠT BẢO VỆ JWT (TẤT CẢ ROUTE DƯỚI ĐÂY PHẢI CÓ TOKEN)
 // ============================================================
@@ -36,12 +34,18 @@ router.use(authMiddleware);
 router.post('/ai/generate-planning', aiController.generatePlanning);
 router.post('/ai/analyze-contract', aiController.analyzeContract);
 
-// --- Lịch sử phân tích (Dành cho Member) ---
+// --- Hồ sơ người dùng ---
+router.put('/users/profile', authController.updateProfile);
+router.delete('/users/account', authController.deleteAccount);
 
+// --- Lịch sử phân tích (Dành cho Member) ---
+router.post('/history/save-video', historyController.saveVideoAnalysis);
+router.post('/history/save', historyController.saveAnalysis);
+router.get('/history/:userId', historyController.getHistory);
 router.get('/history/detail/:id', historyController.getDetail);
 router.delete('/history/delete/:id', historyController.deleteHistory);
 
-// NEW ROUTES: Luật của tôi & Vừa xem gần đây (Không dùng authenticateToken)
+router.put('/history/update/:id', historyController.updateHistory);// NEW ROUTES: Luật của tôi & Vừa xem gần đây (Không dùng authenticateToken)
 // Lấy danh sách luật đã lưu cho một người dùng cụ thể
 router.get('/user/saved-laws/:userId', historyController.getSavedLaws);
 router.post('/user/toggle-saved-law', historyController.toggleSavedLaw); 

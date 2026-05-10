@@ -13,18 +13,26 @@ import {
 import aiClient from "../../api/aiClient";
 import axios from "axios";
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import usePersistedState from '../../hooks/usePersistedState';
+
 
 export default function ContractAnalysis() {
+    // --- STATE thường  ---
     const [file, setFile] = useState(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [result, setResult] = useState(null);
     const [progress, setProgress] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
+
+    // --- STATE F5  ---
+
+    const [analyzedFileName, setAnalyzedFileName] = usePersistedState('legai_contract_filename', '');
+    const [result, setResult] = usePersistedState('legai_contract_result', null);
+    const [isSaved, setIsSaved] = usePersistedState('legai_contract_is_saved', false);
+
+    // --- REFS ---
     const abortControllerRef = useRef(null);
     const intervalRef = useRef(null);
-    const [isSaved, setIsSaved] = useState(false);
     const fileInputRef = useRef(null);
-
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0];
         if (!selectedFile) return;
@@ -51,12 +59,13 @@ export default function ContractAnalysis() {
 
     const handleAnalyze = async () => {
         if (!file) return;
-
         abortControllerRef.current = new AbortController();
         setIsAnalyzing(true);
         setResult(null);
         setProgress(0);
         setIsSaved(false);
+
+        // Bắt đầu chạy progress ảo
         intervalRef.current = setInterval(() => {
             setProgress((prev) => (prev < 90 ? prev + Math.random() * 5 : prev));
         }, 600);
@@ -67,7 +76,8 @@ export default function ContractAnalysis() {
 
             setProgress(100);
             setResult(analysis);
-
+            // LƯU TÊN FILE VÀO STORAGE KHI F5
+            setAnalyzedFileName(file.name);
 
         } catch (error) {
             if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
@@ -155,9 +165,10 @@ export default function ContractAnalysis() {
     const resetAll = () => {
         setFile(null);
         setResult(null);
-        setProgress(0);
+        setAnalyzedFileName('');
+        setIsSaved(false);
         if (fileInputRef.current) {
-            fileInputRef.current.value = ""; // ĐÂY LÀ CHÌA KHÓA: Xóa giá trị thẻ input
+            fileInputRef.current.value = "";
         }
     };
     // xử lý khi người dùng muốn xóa file đã chọn (nếu có) và reset trạng thái về ban đầu
@@ -174,7 +185,7 @@ export default function ContractAnalysis() {
         console.log("Đã xóa file và reset trạng thái.");
     };
 
-   return (
+    return (
         <div className="w-full relative">
             {/* Progress Bar - Đổi sang màu Vàng Đồng */}
             {isAnalyzing && (
@@ -290,8 +301,8 @@ export default function ContractAnalysis() {
                                     onClick={handleSaveToHistory}
                                     disabled={isSaving || isSaved}
                                     className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-all ${isSaving || isSaved
-                                            ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200'
-                                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-600 hover:text-white shadow-sm'
+                                        ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200'
+                                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-600 hover:text-white shadow-sm'
                                         }`}
                                 >
                                     {isSaving ? (
@@ -339,10 +350,10 @@ export default function ContractAnalysis() {
                                             key={index}
                                             // Chuyển màu nền thẻ sang các tông Pastel chuẩn Light Mode
                                             className={`border rounded-2xl p-5 transition-all duration-300 bg-white shadow-sm hover:shadow-md ${level === 'dangerous'
-                                                    ? 'border-red-200 hover:border-red-300'
-                                                    : level === 'high risk' || level === 'high'
-                                                        ? 'border-orange-200 hover:border-orange-300'
-                                                        : 'border-amber-200 hover:border-amber-300'
+                                                ? 'border-red-200 hover:border-red-300'
+                                                : level === 'high risk' || level === 'high'
+                                                    ? 'border-orange-200 hover:border-orange-300'
+                                                    : 'border-amber-200 hover:border-amber-300'
                                                 }`}
                                         >
                                             {/* Header thẻ */}

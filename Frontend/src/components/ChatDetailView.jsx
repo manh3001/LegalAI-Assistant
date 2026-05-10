@@ -2,14 +2,43 @@ import {
   ChatBubbleLeftEllipsisIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
-import { parseAnalysisJson } from "../utils/legalRecordUtils";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function ChatDetailView({ record }) {
-  const content = parseAnalysisJson(record.Content);
-  const messages = content?.messages || [];
+  let messages = [];
+  try {
+    const parsed = JSON.parse(record.fullData?.AnalysisJson || '[]');
+    messages = Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error('Error parsing AnalysisJson for ChatDetailView:', error);
+    messages = [];
+  }
+
+  // FIX LỖI: Hàm tẩy rửa vỏ bọc ({ "answer": "..." }) do DB lưu xuống
+  const cleanChatText = (text) => {
+    if (!text) return "";
+    let cleaned = text;
+
+    try {
+      // Ép chuẩn lại dạng JSON hợp lệ
+      cleaned = cleaned.replace(/^\(\s*\{/, '{').replace(/\}\s*\)$/, '}');
+      const parsed = JSON.parse(cleaned);
+      if (parsed && parsed.answer) {
+        return parsed.answer;
+      }
+    } catch (e) {
+      // Dùng Regex xóa thủ công nếu JSON parse lỗi
+      cleaned = text
+        .replace(/^\(\{\s*"answer"\s*:\s*"/, "") 
+        .replace(/"\s*\}\)$/, "") 
+        .replace(/\\n/g, "\n"); 
+    }
+    return cleaned;
+  };
 
   return (
-    <section className="lg:col-span-3">
+    <section className="lg:col-span-3 rounded-2xl border border-zinc-200 bg-white/85 shadow-[0_10px_40px_rgba(0,0,0,0.04)] backdrop-blur-xl p-6">
       <div className="mb-6 flex items-center gap-2">
         <ChatBubbleLeftEllipsisIcon className="h-5 w-5 text-emerald-600 stroke-2" />
         <h2 className="text-sm font-black uppercase tracking-widest text-[#1A2530]">
@@ -25,45 +54,38 @@ export default function ChatDetailView({ record }) {
           {messages.map((msg, idx) => (
             <div
               key={`msg-${idx}`}
-              className={`flex gap-3 ${msg.isBot ? "flex-row" : "flex-row-reverse"}`}
+              className={`flex gap-3 ${msg.isBot ? "justify-start" : "justify-end"}`}
             >
               {/* Avatar */}
               <div
-                className={`flex-shrink-0 h-8 w-8 rounded-full border-2 flex items-center justify-center ${
-                  msg.isBot
-                    ? "bg-emerald-50 border-emerald-200"
-                    : "bg-blue-50 border-blue-200"
-                }`}
+                className={`flex-shrink-0 h-8 w-8 rounded-full border-2 flex items-center justify-center ${msg.isBot
+                  ? "bg-zinc-50 border-zinc-200"
+                  : "bg-[#B8985D] border-[#B8985D]"
+                  }`}
               >
                 {msg.isBot ? (
-                  <ChatBubbleLeftEllipsisIcon className="h-4 w-4 text-emerald-600 stroke-2" />
+                  <ChatBubbleLeftEllipsisIcon className="h-4 w-4 text-zinc-600 stroke-2" />
                 ) : (
-                  <UserIcon className="h-4 w-4 text-blue-600 stroke-2" />
+                  <UserIcon className="h-4 w-4 text-white stroke-2" />
                 )}
               </div>
 
               {/* Bubble */}
               <div
-                className={`flex-1 ${msg.isBot ? "items-start" : "items-end flex flex-col"}`}
-              >
-                <div
-                  className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
-                    msg.isBot
-                      ? "bg-emerald-50 border border-emerald-200 text-zinc-800 rounded-tl-none"
-                      : "bg-blue-500 text-white rounded-tr-none"
+                className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-sm ${msg.isBot
+                  ? "bg-zinc-50 border border-zinc-200 text-zinc-800"
+                  : "bg-[#B8985D] text-white"
                   }`}
-                >
+              >
+                {msg.isBot ? (
+                  <div className="text-sm leading-6 prose prose-sm max-w-none prose-headings:text-zinc-800 prose-p:text-zinc-800 prose-strong:text-zinc-900 prose-code:text-zinc-700 prose-a:text-blue-600">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {/* FIX LỖI: Bọc hàm tẩy rửa vào đây */}
+                      {cleanChatText(msg.text)}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
                   <p className="text-sm leading-6">{msg.text}</p>
-                </div>
-                {msg.timestamp && (
-                  <p
-                    className={`text-[10px] text-zinc-400 mt-1.5 ${msg.isBot ? "ml-11" : "mr-11"}`}
-                  >
-                    {new Date(msg.timestamp).toLocaleTimeString("vi-VN", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
                 )}
               </div>
             </div>
@@ -76,16 +98,6 @@ export default function ChatDetailView({ record }) {
           <p className="text-xs text-zinc-500 mt-1">
             Lịch sử cuộc trò chuyện sẽ hiển thị ở đây.
           </p>
-        </div>
-      )}
-
-      {/* Summary */}
-      {content?.summary && (
-        <div className="mt-6 p-5 bg-blue-50 border border-blue-200 rounded-2xl">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700 mb-2">
-            Tóm tắt nội dung
-          </p>
-          <p className="text-sm font-medium text-blue-900">{content.summary}</p>
         </div>
       )}
     </section>

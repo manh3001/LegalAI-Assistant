@@ -107,6 +107,130 @@ exports.login = async (req, res) => {
 };
 
 
+/**
+ * PUT /users/profile
+ * body: { fullName, currentPassword, newPassword }
+ */
+exports.updateProfile = async (req, res) => {
+  try {
+    const { fullName, currentPassword, newPassword } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    await poolConnect;
+    const request = pool.request();
+    request.input('Id', sql.Int, userId);
+
+    const selectSql = `SELECT Id, Email, Password, FullName FROM dbo.Users WHERE Id = @Id`;
+    const result = await request.query(selectSql);
+
+    if (!result.recordset || result.recordset.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng.' });
+    }
+
+    const userRow = result.recordset[0];
+    let passwordToSave = userRow.Password;
+
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ success: false, message: 'Vui lòng nhập mật khẩu hiện tại để đổi mật khẩu mới.' });
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, userRow.Password);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'Mật khẩu hiện tại không chính xác.' });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      passwordToSave = await bcrypt.hash(newPassword, salt);
+    }
+
+    const updatedName = fullName && typeof fullName === 'string' && fullName.trim() !== '' ? fullName.trim() : userRow.FullName;
+    const updateRequest = pool.request();
+    updateRequest.input('Id', sql.Int, userId);
+    updateRequest.input('FullName', sql.NVarChar(200), updatedName);
+    updateRequest.input('Password', sql.NVarChar(sql.MAX), passwordToSave);
+
+    const updateSql = `
+      UPDATE dbo.Users
+      SET FullName = @FullName,
+          Password = @Password,
+          UpdatedAt = GETDATE()
+      WHERE Id = @Id;
+      SELECT Id, Email, FullName, Role FROM dbo.Users WHERE Id = @Id;
+    `;
+
+    const updateResult = await updateRequest.query(updateSql);
+    const rawUser = updateResult.recordset[0];
+    // format lại tên trường trả về cho frontend dễ dùng hơn (camelCase)
+    const updatedUser = {
+      id: rawUser.Id,
+      email: rawUser.Email,
+      role: rawUser.Role,
+      fullName: rawUser.FullName 
+    };
+
+    return res.json({
+      success: true,
+      message: 'Thông tin hồ sơ đã được cập nhật.',
+      user: updatedUser
+    });
+    return res.json({ success: true, message: 'Thông tin hồ sơ đã được cập nhật.', user: updatedUser });
+  } catch (err) {
+    console.error('Auth UpdateProfile Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+/**
+ * DELETE /users/account
+ * body: { password }
+ */
+exports.deleteAccount = async (req, res) => {
+  try {
+    const { password } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập mật khẩu để xác nhận.' });
+    }
+
+    await poolConnect;
+    const request = pool.request();
+    request.input('Id', sql.Int, userId);
+
+    const selectSql = `SELECT Id, Password FROM dbo.Users WHERE Id = @Id`;
+    const result = await request.query(selectSql);
+
+    if (!result.recordset || result.recordset.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng.' });
+    }
+
+    const userRow = result.recordset[0];
+    const isMatch = await bcrypt.compare(password, userRow.Password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Mật khẩu xác nhận không chính xác.' });
+    }
+
+    const deleteRequest = pool.request();
+    deleteRequest.input('Id', sql.Int, userId);
+    await deleteRequest.query(`DELETE FROM dbo.Users WHERE Id = @Id`);
+
+    return res.json({ success: true, message: 'Tài khoản đã được xóa thành công.' });
+  } catch (err) {
+    console.error('Auth DeleteAccount Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 
 /**
  * POST /auth/forgot-password

@@ -139,7 +139,7 @@ export const getMockRecordsResponse = (page = 1, limit = 6, search = "") => {
 };
 
 // CONFIG: Bật/tắt mock mode tại đây
-export const USE_MOCK_DATA = true; // Đổi thành true để dùng mock data
+export const USE_MOCK_DATA = false; // Đổi thành true để dùng mock data
 
 // ============ MOCK DATA CHI TIẾT CHO TỪNG TYPE ============
 const mockDetailedRecords = {

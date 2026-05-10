@@ -39,11 +39,7 @@ export default function RecordDetailPage() {
       try {
         let res;
 
-        // Sử dụng mock data nếu USE_MOCK_DATA = true
-        if (USE_MOCK_DATA) {
-          console.log("🔍 Sử dụng MOCK DATA cho ID:", id);
-          res = { data: getMockDetailResponse(id) };
-        } else {
+        {
           // Gọi API thực tế
           const token = localStorage.getItem("accessToken");
           res = await axios.get(
@@ -101,7 +97,7 @@ export default function RecordDetailPage() {
         return <ChatDetailView record={safeRecord} />;
       case "PLANNING":
         return <PlanningDetailView record={safeRecord} />;
-      case "VIDEO_ANALYSIS":
+      case "VIDEO":
         return <VideoAnalysisDetailView record={safeRecord} />;
       case "FORM":
         return <FormDetailView record={safeRecord} />;

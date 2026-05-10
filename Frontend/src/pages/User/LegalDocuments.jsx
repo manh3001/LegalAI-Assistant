@@ -56,14 +56,21 @@ export default function LegalDocuments() {
       const res = await axios.get("http://localhost:8000/api/document-stats");
       if (res.data.success) {
         const apiStats = res.data.stats;
-        const menuItems = ["Bộ máy hành chính", "Tài chính nhà nước", "Bất động sản", "Thương mại", "Dân sự", "Hình sự", "Lao động - Tiền lương", "Giao thông - Vận tải"];
+        
+        //  gom TẤT CẢ các danh mục có trong DB trả về
+        const dynamicMenu = apiStats
+            .filter(s => s.Category !== "Lĩnh vực khác" && s.Category) // Lọc bỏ 'Lĩnh vực khác' và NULL để xếp riêng
+            .map(s => ({
+                name: s.Category,
+                count: s.Count
+            }));
+
+        // Sắp xếp danh mục theo bảng chữ cái cho đẹp
+        dynamicMenu.sort((a, b) => a.name.localeCompare(b.name));
 
         const updated = [
           { name: "Xem tất cả", count: res.data.total },
-          ...menuItems.map(name => ({
-            name,
-            count: apiStats.find(s => s.Category === name)?.Count || 0
-          })),
+          ...dynamicMenu, // Chèn tất cả danh mục động vào đây
           { name: "Lĩnh vực khác", count: apiStats.find(s => s.Category === "Lĩnh vực khác")?.Count || 0 }
         ];
         setCategories(updated);
@@ -293,7 +300,8 @@ export default function LegalDocuments() {
   };
 
   return (
-        <div className="min-h-screen bg-[#f8f9fa] text-[#1A2530] font-sans flex pt-16 w-full overflow-x-hidden selection:bg-[#B8985D]/30 selection:text-[#1A2530]">
+        // Đổi nền tổng thể sang #f8f9fa, chữ Đen Than #1A2530
+        <div className="min-h-screen bg-[#f8f9fa] text-[#1A2530] font-sans flex items-start pt-16 w-full selection:bg-[#B8985D]/30 selection:text-[#1A2530]">
 
             {/* ================= SIDEBAR ================= */}
             <aside className="hidden lg:flex flex-col w-72 bg-white border-r border-zinc-200 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">

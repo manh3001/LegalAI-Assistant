@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import usePersistedState from '../hooks/usePersistedState';
 import {
     PaperAirplaneIcon,
     DocumentArrowDownIcon,
@@ -14,7 +15,7 @@ import aiClient from "../api/aiClient";
 
 export default function FormGeneration() {
     // 1. STATE QUẢN LÝ CHAT & LƯU TRỮ
-    const [messages, setMessages] = useState([
+    const [messages, setMessages] = usePersistedState('formMessages', [
         { id: 1, sender: 'ai', text: 'Chào bạn! Tôi là trợ lý LegAI. Bạn cần tạo hợp đồng gì? (VD: Soạn hợp đồng dịch vụ tư vấn pháp lý, tôi là Công ty A, MST 12345, phí dịch vụ 50 triệu...)' }
     ]);
     const [inputValue, setInputValue] = useState('');
@@ -33,8 +34,8 @@ export default function FormGeneration() {
     }, [inputValue]);
 
     // 2. STATE QUẢN LÝ BIỂU MẪU
-    const [currentTemplate, setCurrentTemplate] = useState('none');
-    const [formData, setFormData] = useState({
+    const [currentTemplate, setCurrentTemplate] = usePersistedState('currentFormTemplate', 'none'); // none, service_contract, labor_contract, lease_contract, blank
+    const [formData, setFormData] = usePersistedState('formData', {
         ten_hop_dong: 'HỢP ĐỒNG DỊCH VỤ',
         can_cu_luat: [],
         benA_name: '', benA_id: '', benA_address: '', benA_phone: '', benA_rep: '',
@@ -43,7 +44,32 @@ export default function FormGeneration() {
     });
 
     const handleFormChange = (field, value) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        setFormData(prev => ({
+            ...prev,
+            // Lấy tên hợp đồng từ extracted_data hoặc root, fallback về prev
+            ten_hop_dong: aiData.extracted_data?.ten_hop_dong || aiData.ten_hop_dong || prev.ten_hop_dong,
+
+            //  (Role)
+            benA_role: aiData.extracted_data?.benA_role || 'BÊN A',
+            benB_role: aiData.extracted_data?.benB_role || 'BÊN B',
+            can_cu_luat: aiData.extracted_data?.can_cu_luat || [],
+
+            // Gán trực tiếp từng trường, chấp nhận chuỗi rỗng "" để reset data cũ
+            benA_name: aiData.extracted_data?.benA_name || '',
+            benA_id: aiData.extracted_data?.benA_id || '',
+            benA_address: aiData.extracted_data?.benA_address || '',
+            benA_phone: aiData.extracted_data?.benA_phone || '',
+            benA_rep: aiData.extracted_data?.benA_rep || '',
+
+            benB_name: aiData.extracted_data?.benB_name || '',
+            benB_id: aiData.extracted_data?.benB_id || '',
+            benB_address: aiData.extracted_data?.benB_address || '',
+            benB_phone: aiData.extracted_data?.benB_phone || '',
+            benB_rep: aiData.extracted_data?.benB_rep || '',
+
+            // Kéo thẳng mảng sections vào state
+            sections: aiData.extracted_data?.sections || []
+        }));
         setIsSaved(false); // Khi sửa tay thì cho phép lưu lại bản mới
     };
 
@@ -140,8 +166,22 @@ export default function FormGeneration() {
             setIsSaving(false);
         }
     };
-
-
+    // hàm tạo mới chat và reset form về mặc định
+    const handleNewChat = () => {
+        if (window.confirm("Bản thảo hiện tại sẽ bị xóa (nếu chưa Lưu hồ sơ). Bạn có chắc muốn tạo mới?")) {
+            // Reset về giá trị mặc định ban đầu
+            setMessages([{ id: 1, sender: 'ai', text: 'Chào bạn! Tôi là trợ lý LegAI. Bạn cần tạo hợp đồng gì?' }]);
+            setCurrentTemplate('none');
+            setFormData({
+                ten_hop_dong: 'HỢP ĐỒNG DỊCH VỤ', can_cu_luat: [],
+                benA_name: '', benA_id: '', benA_address: '', benA_phone: '', benA_rep: '',
+                benB_name: '', benB_id: '', benB_address: '', benB_phone: '', benB_rep: '',
+                sections: []
+            });
+            setInputValue('');
+            setIsSaved(false);
+        }
+    };
     const handlePrint = () => window.print();
     const glassPanel = "bg-black/60 backdrop-blur-2xl border border-white/10 shadow-2xl rounded-3xl";
 
@@ -159,15 +199,15 @@ export default function FormGeneration() {
     );
 
     return (
-        // Bỏ text-white, dùng text-[#1A2530] làm mặc định
+
         <div className="w-full h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col md:flex-row gap-6 text-[#1A2530]">
 
             {/* ========================================================= */}
             {/* CỘT TRÁI: CHAT AI */}
             {/* ========================================================= */}
-            {/* Sửa glassPanel thành giao diện sáng (Kính mờ trắng) */}
+
             <div className={`w-full md:w-[400px] lg:w-[450px] flex flex-col h-full bg-white/80 backdrop-blur-xl border border-zinc-200 shadow-sm rounded-3xl overflow-hidden flex-shrink-0`}>
-                
+
                 {/* Header Chat */}
                 <div className="p-5 border-b border-zinc-200 bg-zinc-50 flex items-center gap-3">
                     <div className="p-2 bg-[#B8985D]/10 rounded-xl border border-[#B8985D]/20">
@@ -178,22 +218,28 @@ export default function FormGeneration() {
                         <p className="text-xs text-zinc-500 font-medium">Tự động điền Hợp đồng chuẩn</p>
                     </div>
                 </div>
-
+                <button
+                    onClick={handleNewChat}
+                    title="Bắt đầu hợp đồng mới"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-500 hover:text-[#B8985D] hover:bg-[#B8985D]/10 transition-colors"
+                >
+                    <ArrowPathIcon className="w-4 h-4 stroke-2" />
+                    TẠO MỚI
+                </button>
                 {/* Khung tin nhắn */}
                 <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-zinc-50/50">
                     {messages.map((msg) => (
                         <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-sm font-medium leading-relaxed ${
-                                msg.sender === 'user' 
+                            <div className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-sm font-medium leading-relaxed ${msg.sender === 'user'
                                 ? 'bg-[#1A2530] text-white rounded-tr-none' // User: Đen than
-                                : 'bg-white text-zinc-700 border border-zinc-200 rounded-tl-none' // AI: Trắng tinh
-                            }`}>
+                                : 'bg-white text-zinc-700 border border-zinc-200 rounded-tl-none'
+                                }`}>
                                 {msg.text}
                             </div>
                         </div>
                     ))}
-                    
-                    {/* Hiệu ứng gõ chữ (Typing) */}
+
+                    {/* Hiệu ứng gõ chữ  */}
                     {isTyping && (
                         <div className="flex justify-start">
                             <div className="bg-white border border-zinc-200 rounded-2xl rounded-tl-none p-4 flex gap-1.5 shadow-sm">
@@ -220,7 +266,7 @@ export default function FormGeneration() {
                                 maxHeight: '200px'
                             }}
                         />
-                        {/* Nút gửi: Đen than, hover Vàng đồng */}
+
                         <button type="submit" disabled={isTyping || !inputValue.trim()} className="absolute right-2 bottom-2 h-[40px] w-[40px] flex items-center justify-center rounded-xl bg-[#1A2530] hover:bg-[#B8985D] text-white disabled:bg-zinc-200 disabled:text-zinc-400 transition-colors shadow-sm">
                             <PaperAirplaneIcon className="w-5 h-5 stroke-2" />
                         </button>
@@ -232,7 +278,7 @@ export default function FormGeneration() {
             {/* CỘT PHẢI: TỜ A4 SOẠN THẢO */}
             {/* ========================================================= */}
             <div className={`flex-1 flex flex-col h-full bg-white/80 backdrop-blur-xl border border-zinc-200 shadow-sm rounded-3xl overflow-hidden relative print:bg-white print:text-black print:border-none print:shadow-none`}>
-                
+
                 {/* Header thanh công cụ */}
                 <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex justify-between items-center px-6 print:hidden">
                     <div className="flex items-center gap-2 text-[#1A2530]">
@@ -243,11 +289,10 @@ export default function FormGeneration() {
                     </div>
                     <div className="flex gap-3">
                         {currentTemplate !== 'none' && (
-                            <button onClick={handleSaveToHistory} disabled={isSaving || isSaved} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-                                isSaved 
-                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                            <button onClick={handleSaveToHistory} disabled={isSaving || isSaved} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${isSaved
+                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                                 : 'bg-[#1A2530] hover:bg-[#B8985D] text-white border border-transparent'
-                            }`}>
+                                }`}>
                                 {isSaving ? <ArrowPathIcon className="w-4 h-4 animate-spin stroke-2" /> : <CheckBadgeIcon className="w-4 h-4 stroke-2" />}
                                 {isSaving ? "ĐANG LƯU..." : isSaved ? "ĐÃ LƯU" : "LƯU HỒ SƠ"}
                             </button>
@@ -327,15 +372,9 @@ export default function FormGeneration() {
                                                         newSections[index].content = e.target.value;
                                                         handleFormChange('sections', newSections);
                                                     }}
-                                                    // Đổi focus ring sang màu Vàng Đồng
                                                     className="w-full bg-transparent border-none hover:bg-zinc-50 focus:bg-white focus:ring-1 focus:ring-[#B8985D]/50 rounded resize-none overflow-hidden leading-relaxed whitespace-pre-wrap transition-colors"
-                                                    style={{ minHeight: '60px' }}
-                                                    ref={(el) => {
-                                                        if (el) {
-                                                            el.style.height = 'auto';
-                                                            el.style.height = el.scrollHeight + 'px';
-                                                        }
-                                                    }}
+                                                    // Đếm số dấu xuống dòng (\n) để tính số hàng (rows) mặc định
+                                                    rows={section.content ? section.content.split('\n').length + 1 : 3}
                                                     onInput={(e) => {
                                                         e.target.style.height = 'auto';
                                                         e.target.style.height = e.target.scrollHeight + 'px';

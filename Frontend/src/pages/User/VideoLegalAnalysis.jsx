@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import usePersistedState from '../../hooks/usePersistedState';
 import {
     VideoCameraIcon,
     SparklesIcon,
@@ -11,12 +12,13 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function VideoLegalAnalysis() {
-    const [videoUrl, setVideoUrl] = useState('');
-    const [embedUrl, setEmbedUrl] = useState('');
+    const [videoUrl, setVideoUrl] = usePersistedState('videoUrl', '');
+    const [embedUrl, setEmbedUrl] = usePersistedState('embedUrl', '');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [videoData, setVideoData] = useState(null);
+    const [videoData, setVideoData] = usePersistedState('videoData', null);
     const [analysisError, setAnalysisError] = useState(null);
-
+    const [isSaving, setIsSaving] = useState(false);
+    const [isSaved, setIsSaved] = useState(false);
     const parseYoutubeEmbedUrl = (url) => {
         if (!url) return '';
         const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]+)/);
@@ -26,6 +28,7 @@ export default function VideoLegalAnalysis() {
     const handleUrlChange = (event) => {
         const value = event.target.value;
         setVideoUrl(value);
+
         setVideoData(null);
         setAnalysisError(null);
         setEmbedUrl(parseYoutubeEmbedUrl(value));
@@ -46,7 +49,7 @@ export default function VideoLegalAnalysis() {
                 <span key={index} className="block mb-2">
                     {parts.map((part, i) =>
                         i % 2 === 1 ? (
-                            // ĐỔI SANG MÀU VÀNG ĐỒNG AGENCY (#B8985D)
+
                             <strong key={i} className="text-[#B8985D] font-black">{part}</strong>
                         ) : (
                             part
@@ -65,7 +68,7 @@ export default function VideoLegalAnalysis() {
         }
 
         setIsAnalyzing(true);
-        setVideoData(null);
+        setIsSaved(false);
         setAnalysisError(null);
 
         try {
@@ -81,6 +84,7 @@ export default function VideoLegalAnalysis() {
                 const result = response.data.data;
 
                 setVideoData({
+
                     transcript: result.Transcript || result.transcript,
                     summary: result.analysis_report || result.Summary || result.summary,
                     legalMap: (typeof result.LegalBases === 'string'
@@ -89,11 +93,14 @@ export default function VideoLegalAnalysis() {
                     trustScore: result.TrustScore || result.audit_metrics?.trust_score || result.trustScore || 0,
                     actionPlan: result.action_plan || (result.AnalysisJson ? JSON.parse(result.AnalysisJson).action_plan : [])
                 });
+
+                setEmbedUrl(parseYoutubeEmbedUrl(videoUrl));
+
             } else {
                 setAnalysisError(response.data.error || 'Không thể phân tích video này.');
             }
         } catch (error) {
-            console.error("❌ Lỗi gọi API phân tích video:", error);
+            console.error(" Lỗi gọi API phân tích video:", error);
             setAnalysisError(error.response?.data?.error || "Hệ thống không thể phân tích video này. Bạn kiểm tra lại server hoặc thử URL khác.");
         } finally {
             setIsAnalyzing(false);
@@ -105,13 +112,72 @@ export default function VideoLegalAnalysis() {
         alert("Đã copy Transcript!");
     };
 
-    // ĐÃ XÓA BIẾN glassClass Ở ĐÂY ĐỂ CODE SẠCH SẼ 
+    //hàm lưu vào lịch sử phân tích (ContractHistory) - Dành cho Member
+    const handleSave = async () => {
+        if (!videoData || isSaved) return;
+
+        setIsSaving(true);
+
+        try {
+            const token = localStorage.getItem("accessToken");
+            const userStr = localStorage.getItem("user");
+
+            let userId = 1;
+            try {
+                const user = userStr ? JSON.parse(userStr) : null;
+                userId = user?.id ?? user?.Id ?? user?.ID ?? 1;
+            } catch { }
+
+            const payload = {
+                userId: userId,
+                fileName: `Video_${Date.now()}.txt`,
+                title: `Phân tích video: ${videoUrl}`,
+                recordType: 'VIDEO',
+                riskScore: videoData.trustScore || 0,
+                content: JSON.stringify({
+                    ...videoData,
+                    legalBases: videoData.legalMap
+                })
+            };
+
+            const res = await axios.post('http://localhost:8000/api/history/save', payload, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.data.success) {
+                setIsSaved(true);
+                alert(" Đã lưu vào ContractHistory!");
+            }
+
+        } catch (err) {
+            console.error("Lỗi lưu video:", err);
+            alert("Không thể lưu.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    // hàm reset toàn bộ trạng thái để phân tích video mới
+    const handleReset = () => {
+        if (!window.confirm("Reset sẽ xoá dữ liệu hiện tại. Bạn chắc chứ?")) return;
+
+        setVideoUrl('');
+        setEmbedUrl('');
+        setVideoData(null);
+        setAnalysisError(null);
+        setIsSaved(false);
+    };
+
+    useEffect(() => {
+        if (videoUrl) {
+            setEmbedUrl(parseYoutubeEmbedUrl(videoUrl));
+        }
+    }, [videoUrl]);
 
     return (
-        // Đổi text-white thành text-[#1A2530]
+
         <div className="w-full h-[calc(100vh-80px)] p-6 text-[#1A2530] overflow-hidden flex flex-col md:flex-row gap-6">
 
-            {/* 🔴 CỘT TRÁI: ĐIỀU KHIỂN & VIDEO (40%) */}
+            {/*  CỘT TRÁI: ĐIỀU KHIỂN & VIDEO (40%) */}
             <div className="w-full md:w-5/12 flex flex-col gap-6 h-full">
                 {/* Ô nhập URL YouTube - Đổi sang nền trắng kính mờ */}
                 <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-sm border border-zinc-200 p-6">
@@ -119,7 +185,7 @@ export default function VideoLegalAnalysis() {
                         <label className="text-[10px] font-black uppercase tracking-[0.35em] text-zinc-500 ml-1">
                             YouTube Video URL
                         </label>
-                        
+
                         {/* VÙNG RELATIVE ĐƯỢC CÔ LẬP CHO INPUT VÀ BUTTON */}
                         <div className="relative w-full">
                             <input
@@ -176,19 +242,51 @@ export default function VideoLegalAnalysis() {
                 </div>
             </div>
 
-            {/* 🔵 CỘT PHẢI: KẾT QUẢ AI (60%) */}
+
+
+
+            {/*  CỘT PHẢI: KẾT QUẢ AI (60%) */}
             <div className="w-full md:w-7/12 flex flex-col h-full overflow-hidden bg-white/80 backdrop-blur-xl border border-zinc-200 shadow-sm rounded-3xl">
-                {/* Header Kết Quả */}
                 <div className="p-6 border-b border-zinc-200 bg-zinc-50 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <SparklesIcon className="w-6 h-6 text-[#B8985D] stroke-2" />
-                        <h2 className="font-black uppercase tracking-tighter text-xl text-[#1A2530]">LegAI Insights</h2>
+                        <h2 className="font-black uppercase tracking-tighter text-xl text-[#1A2530]">LEGAL Insights</h2>
                     </div>
-                    {videoData && (
-                        <span className="bg-[#B8985D]/10 text-[#8E6D45] px-4 py-1.5 rounded-full text-[10px] font-black border border-[#B8985D]/20 tracking-wider">
-                            AI PROCESSED
-                        </span>
-                    )}
+
+                    {/* ⭐ GROUP RIGHT SIDE */}
+                    <div className="flex items-center gap-2">
+
+                        {videoData && (
+                            <button
+                                onClick={handleReset}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-zinc-300 hover:border-[#B8985D] hover:text-[#B8985D] transition"
+                            >
+                                <ArrowPathIcon className="w-4 h-4" />
+                                RESET
+                            </button>
+                        )}
+
+                        {videoData && (
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaving || isSaved}
+                                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition ${isSaved
+                                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                                        : 'bg-[#1A2530] text-white hover:bg-[#B8985D]'
+                                    }`}
+                            >
+                                {isSaving ? (
+                                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                ) : 'LƯU'}
+                            </button>
+                        )}
+
+                        {videoData && (
+                            <span className="bg-[#B8985D]/10 text-[#8E6D45] px-4 py-1.5 rounded-full text-[10px] font-black border border-[#B8985D]/20 tracking-wider">
+                                AI PROCESSED
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar bg-white/50">

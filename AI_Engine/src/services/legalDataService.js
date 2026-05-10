@@ -33,7 +33,6 @@ const updateSyncStatus = async (documentId, ssmsStatus, pineconeStatus) => {
             WHERE Id = @id
         `);
 };
-
 const upsertLegalData = async (data, isUpdate = false) => {
     await poolConnect;
     initCloudServices();
@@ -43,69 +42,108 @@ const upsertLegalData = async (data, isUpdate = false) => {
     let pineconeStatus = 'syncing';
 
     try {
-        const request = pool.request()
-            .input('title', data.title)
-            .input('documentNumber', data.documentNumber || null)
-            .input('issueYear', data.issueYear || null)
-            .input('status', data.status || 'Còn hiệu lực')
-            .input('category', data.category || null)
-            .input('content', data.content)
-            .input('sourceUrl', data.sourceUrl || null);
+        let finalContent = data.content;
+        let shouldReVectorize = true;
 
         if (isUpdate) {
-            request.input('id', data.id);
-            await request.query(`
-                UPDATE LegalDocuments
-                SET Title = @title,
-                    DocumentNumber = @documentNumber,
-                    IssueYear = @issueYear,
-                    Status = @status,
-                    Category = @category,
-                    Content = @content,
-                    SourceUrl = @sourceUrl,
-                    SyncStatusSsms = 'syncing',
-                    SyncStatusPinecone = 'syncing'
-                WHERE Id = @id
-            `);
             documentId = data.id;
+
+            // 1. LẤY DATA CŨ BẢO VỆ NỘI DUNG (Tránh bị xóa trắng do UI gửi lên rỗng)
+            const oldDocResult = await pool.request()
+                .input('id', documentId)
+                .query('SELECT Content FROM LegalDocuments WHERE Id = @id');
+
+            const oldContent = oldDocResult.recordset[0]?.Content || '';
+
+            // Lấy nội dung mới, nếu rỗng thì dùng lại nội dung cũ
+            finalContent = (data.content && data.content.trim() !== '') ? data.content : oldContent;
+
+            // 2. KIỂM TRA: Nếu nội dung y hệt cũ -> KHÔNG tốn tiền chạy lại Pinecone
+            if (finalContent === oldContent) {
+                shouldReVectorize = false;
+            }
+
+            // 3. FULL UPDATE XUỐNG SQL
+            await pool.request()
+                .input('id', documentId)
+                .input('title', data.title)
+                .input('documentNumber', data.documentNumber || null)
+                .input('issueYear', data.issueYear || null)
+                .input('status', data.status || 'Còn hiệu lực')
+                .input('category', data.category || 'Lĩnh vực khác')
+                .input('content', finalContent)
+                .input('sourceUrl', data.sourceUrl || null)
+                .query(`
+                    UPDATE LegalDocuments
+                    SET Title = @title,
+                        DocumentNumber = @documentNumber,
+                        IssueYear = @issueYear,
+                        Status = @status,
+                        Category = @category,
+                        Content = @content,
+                        SourceUrl = @sourceUrl,
+                        SyncStatusSsms = 'success',
+                        SyncStatusPinecone = 'syncing'
+                    WHERE Id = @id
+                `);
+
+            // Xóa vector cũ nếu cần update lại Vector mới
+            if (shouldReVectorize) {
+                try {
+                    await pineconeIndex.deleteMany({ filter: { doc_id: documentId.toString() } });
+                } catch (err) { console.warn("Lỗi xóa vector cũ Pinecone:", err.message); }
+            }
+
         } else {
-            const result = await request.query(`
-                INSERT INTO LegalDocuments
-                    (Title, DocumentNumber, IssueYear, Status, Category, Content, CreatedAt, SourceUrl, SyncStatusSsms, SyncStatusPinecone)
-                OUTPUT INSERTED.Id
-                VALUES
-                    (@title, @documentNumber, @issueYear, @status, @category, @content, GETDATE(), @sourceUrl, 'syncing', 'syncing')
-            `);
+            // XỬ LÝ INSERT (Văn bản mới)
+            const result = await pool.request()
+                .input('title', data.title)
+                .input('documentNumber', data.documentNumber || null)
+                .input('issueYear', data.issueYear || null)
+                .input('status', data.status || 'Còn hiệu lực')
+                .input('category', data.category || 'Lĩnh vực khác')
+                .input('content', finalContent)
+                .input('sourceUrl', data.sourceUrl || null)
+                .query(`
+                    INSERT INTO LegalDocuments
+                        (Title, DocumentNumber, IssueYear, Status, Category, Content, CreatedAt, SourceUrl, SyncStatusSsms, SyncStatusPinecone)
+                    OUTPUT INSERTED.Id
+                    VALUES
+                        (@title, @documentNumber, @issueYear, @status, @category, @content, GETDATE(), @sourceUrl, 'success', 'syncing')
+                `);
             documentId = result.recordset[0].Id;
         }
 
         ssmsStatus = 'success';
-        await updateSyncStatus(documentId, ssmsStatus, pineconeStatus);
 
-        const chunks = chunkText(data.content, 1500, 200);
-        const vectors = [];
+        // 4. CHỈ CHẠY PINECONE NẾU CẦN THIẾT
+        if (shouldReVectorize) {
+            const chunks = chunkText(finalContent, 1500, 200);
+            const vectors = [];
 
-        for (let index = 0; index < chunks.length; index += 1) {
-            const chunk = chunks[index];
-            const embeddingResult = await embedModel.embedContent(chunk);
-            const vectorValues = Array.from(embeddingResult.embedding.values);
+            for (let index = 0; index < chunks.length; index += 1) {
+                const chunk = chunks[index];
+                const embeddingResult = await embedModel.embedContent(chunk);
+                const vectorValues = Array.from(embeddingResult.embedding.values);
 
-            vectors.push({
-                id: `${documentId}_${index}`,
-                values: vectorValues,
-                metadata: {
-                    title: data.title,
-                    documentNumber: data.documentNumber || null,
-                    issueYear: data.issueYear || null,
-                    status: data.status || 'Còn hiệu lực',
-                    category: data.category || null,
-                    text: chunk
-                }
-            });
-        }
+                vectors.push({
+                    id: `${documentId}_${index}`,
+                    values: vectorValues,
+                    metadata: {
+                        doc_id: documentId.toString(), // 🛠️ FIX BUG: Thêm doc_id để hàm Delete của bạn hoạt động được
+                        title: data.title,
+                        documentNumber: data.documentNumber || null,
+                        issueYear: data.issueYear || null,
+                        status: data.status || 'Còn hiệu lực',
+                        category: data.category || 'Lĩnh vực khác',
+                        text: chunk
+                    }
+                });
+            }
 
-        if (vectors.length > 0) {
-            await pineconeIndex.upsert({ vectors });
+            if (vectors.length > 0) {
+                await pineconeIndex.upsert({ vectors });
+            }
         }
 
         pineconeStatus = 'success';
@@ -116,19 +154,12 @@ const upsertLegalData = async (data, isUpdate = false) => {
         console.error('[legalDataService] upsertLegalData error:', error.message || error);
         if (ssmsStatus !== 'success') ssmsStatus = 'error';
         pineconeStatus = 'error';
-
         if (documentId) {
-            try {
-                await updateSyncStatus(documentId, ssmsStatus, pineconeStatus);
-            } catch (updateErr) {
-                console.error('[legalDataService] failed to update sync status:', updateErr.message || updateErr);
-            }
+            try { await updateSyncStatus(documentId, ssmsStatus, pineconeStatus); } catch (updateErr) {}
         }
-
-        return { success: false, error: error.message || 'Failed to upsert legal data', syncStatus: { ssms: ssmsStatus, pinecone: pineconeStatus } };
+        return { success: false, error: error.message, syncStatus: { ssms: ssmsStatus, pinecone: pineconeStatus } };
     }
 };
-
 const deleteLegalData = async (documentId) => {
     await poolConnect;
     initCloudServices();

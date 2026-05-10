@@ -5,9 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function Preloader({ isLoading, onRobotLoad }) {
     const letters = "LEGALAI".split("");
 
-    // Tạo mảng các hạt dữ liệu bay lơ lửng
-    const dataParticles = Array.from({ length: 30 }, () => Math.random());
-    const legalSymbols = ["§", "¶", "Δ", "⚖", "📜", "01"];
+
 
     const containerVariants = {
         visible: { transition: { staggerChildren: 0.15, delayChildren: 0.5 } }

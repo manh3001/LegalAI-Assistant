@@ -67,7 +67,7 @@ const startServer = async () => {
         server.listen(PORT, () => {
             console.log(`\n========================================`);
             console.log(` LEGAI BACKEND & SOCKET.IO STARTED AT: http://localhost:${PORT}`);
-            console.log(`Chế độ: Full Modular + Real-time Socket.io + Auto Scheduler`);
+            console.log(` Full Modular + Real-time Socket.io + Auto Scheduler`);
             console.log(`========================================\n`);
         });
     } catch (error) {

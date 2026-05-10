@@ -2,56 +2,43 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import {
     XMarkIcon,
     PaperAirplaneIcon,
-    CpuChipIcon,
     SparklesIcon,
-    UserIcon,
-    ArrowPathIcon,
     CloudArrowUpIcon,
-    CheckBadgeIcon
+    CheckBadgeIcon,
+    PlusIcon
 } from '@heroicons/react/24/outline';
 import aiClient from '../api/aiClient';
 import LawyerCard from './LawyerCard';
 
 export default function ChatbotAI({ isOpen, onClose }) {
+    const navigate = useNavigate();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const [chatMode, setChatMode] = useState('ai');
     const [isSaving, setIsSaving] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
-
+    // Kiểm tra trạng thái login và lượt chat của khách
+    const [isLoggedIn] = useState(!!localStorage.getItem("accessToken"));
+    const [guestCount, setGuestCount] = useState(
+        parseInt(localStorage.getItem("legai_guest_count") || "0")
+    );
     const messagesEndRef = useRef(null);
     const textareaRef = useRef(null);
 
-    // Khởi tạo tin nhắn chào mừng
+    // Khởi tạo tin nhắn chào mừng (Chỉ còn AI)
     useEffect(() => {
         setIsSaved(false);
-        
-        // Dùng 'prev' để kiểm tra trạng thái hiện tại trước khi hành động
-        setMessages(prev => {
-         
-            // TUYỆT ĐỐI KHÔNG được reset mảng. Giữ nguyên đoạn chat!
-            if (prev && prev.length > 1) {
-                return prev;
-            }
+        setMessages([
+            { id: 'ai-init', text: "Chào bạn! Tôi là LegAI. Bạn cần tra cứu hay tư vấn vấn đề pháp lý nào?", isBot: true }
+        ]);
+    }, []);
 
-            // Nếu mảng đang trống (hoặc chỉ mới có câu chào cũ), thì mới khởi tạo
-            if (chatMode === 'ai') {
-                return [
-                    { id: 'ai-init', text: "Chào bạn! Tôi là LegalAI. Bạn cần thẩm định hay tư vấn điều khoản nào?", isBot: true }
-                ];
-            } else {
-                return [
-                    { id: 'human-init', text: "Chào bạn! Bạn đã kết nối với chế độ Luật sư. Vui lòng mô tả vấn đề của bạn.", isBot: true }
-                ];
-            }
-        });
-    }, [chatMode]);
-
-    // Tự động cuộn xuống tin nhắn mới
+    // Tự động cuộn
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, isLoading]);
@@ -64,9 +51,31 @@ export default function ChatbotAI({ isOpen, onClose }) {
         }
     }, [input]);
 
+    // --- HÀM TẠO CUỘC TRÒ CHUYỆN MỚI ---
+    const handleNewChat = () => {
+        // Cảnh báo nếu có data mà chưa lưu
+        if (messages.length > 1 && !isSaved) {
+            const confirm = window.confirm("Phiên chat hiện tại chưa được lưu vào Hồ sơ. Bạn có chắc chắn muốn tạo cuộc trò chuyện mới?");
+            if (!confirm) return;
+        }
+
+        setMessages([
+            { id: 'ai-init', text: "Chào bạn! Tôi là LegAI. Bạn cần tra cứu hay tư vấn vấn đề pháp lý nào?", isBot: true }
+        ]);
+        setInput("");
+        setIsSaved(false);
+        setIsLoading(false);
+    };
+
     // --- HÀM LƯU HỘI THOẠI VÀO SQL ---
     const handleSaveChat = async () => {
         if (messages.length < 2) return;
+
+        if (isSaved) {
+            toast.error("Phiên chat này đã được lưu rồi!");
+            return;
+        }
+
         setIsSaving(true);
         try {
             const token = localStorage.getItem("accessToken");
@@ -74,7 +83,6 @@ export default function ChatbotAI({ isOpen, onClose }) {
             const user = userStr ? JSON.parse(userStr) : { id: 1 };
             const userId = user.id ?? user.Id ?? user.ID;
 
-            // Lấy tin nhắn đầu tiên của User làm tiêu đề
             const firstUserMsg = messages.find(m => !m.isBot)?.text || "Cuộc trò chuyện mới";
             const displayTitle = firstUserMsg.length > 35 ? firstUserMsg.substring(0, 35) + "..." : firstUserMsg;
 
@@ -82,9 +90,9 @@ export default function ChatbotAI({ isOpen, onClose }) {
                 userId: userId,
                 fileName: `Chat_${Date.now()}.json`,
                 title: `Thảo luận: ${displayTitle}`,
-                recordType: 'CHAT', // Nhãn để hiện Icon bóng thoại xanh lá
+                recordType: 'CHAT',
                 riskScore: null,
-                content: JSON.stringify(messages) // Lưu toàn bộ mảng tin nhắn
+                content: JSON.stringify(messages)
             };
 
             const res = await axios.post('http://localhost:8000/api/history/save', payload, {
@@ -93,10 +101,11 @@ export default function ChatbotAI({ isOpen, onClose }) {
 
             if (res.data.success) {
                 setIsSaved(true);
+                toast.success("Đã lưu phiên trò chuyện!");
             }
         } catch (err) {
             console.error("Lỗi lưu Chat:", err);
-            alert("❌ Không thể lưu hội thoại. Vui lòng kiểm tra đăng nhập.");
+            toast.error("Không thể lưu hội thoại. Vui lòng thử lại sau.");
         } finally {
             setIsSaving(false);
         }
@@ -104,6 +113,10 @@ export default function ChatbotAI({ isOpen, onClose }) {
 
     const handleSend = async (e) => {
         if (e) e.preventDefault();
+
+        // 1. Chặn gửi nếu là khách và đã hết lượt
+        if (!isLoggedIn && guestCount >= 3) return;
+
         if (!input.trim() || isLoading) return;
 
         const userMsg = { id: Date.now(), text: input, isBot: false };
@@ -114,27 +127,23 @@ export default function ChatbotAI({ isOpen, onClose }) {
         setIsSaved(false);
 
         try {
-            if (chatMode === 'ai') {
-                const res = await aiClient.ask(question);
-                setMessages(prev => [...prev, {
-                    id: Date.now() + 1,
-                    text: res.answer || "Tôi đang học hỏi thêm về vấn đề này, bạn có thể nói rõ hơn không?",
-                    isBot: true
-                }]);
-            } else {
-                setTimeout(() => {
-                    setMessages(prev => [...prev, {
-                        id: Date.now() + 1,
-                        text: "🔔 Đã gửi yêu cầu đến Luật sư trực. Vui lòng giữ kết nối trong ít phút.",
-                        isBot: true
-                    }]);
-                    setIsLoading(false);
-                }, 1500);
+            const res = await aiClient.ask(question);
+            setMessages(prev => [...prev, {
+                id: Date.now() + 1,
+                text: res.answer || "Tôi đang học hỏi thêm về vấn đề này, bạn có thể nói rõ hơn không?",
+                isBot: true
+            }]);
+
+            // 2. Tăng lượt đếm sau khi AI trả lời thành công (chỉ áp dụng cho khách)
+            if (!isLoggedIn) {
+                const newCount = guestCount + 1;
+                setGuestCount(newCount);
+                localStorage.setItem("legai_guest_count", newCount.toString());
             }
         } catch (error) {
             setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ Server LegAI đang bận, thử lại sau nhé bạn.", isBot: true }]);
         } finally {
-            if (chatMode === 'ai') setIsLoading(false);
+            setIsLoading(false);
         }
     };
 
@@ -146,174 +155,225 @@ export default function ChatbotAI({ isOpen, onClose }) {
     };
 
     if (!isOpen) return null;
-   // =========================================================================
-    // HÀM  Xử lý mọi cấu trúc JSON từ Gemini trả về
-    // =========================================================================
+
     const formatAIMessage = (text) => {
         if (!text) return "";
-        
+        let content = text;
+
+        // BƯỚC 1: BÓC VỎ JSON (Xử lý mọi biến thể JSON AI có thể trả về)
         try {
             const parsed = JSON.parse(text);
-            
-            // 1. CHẶN NGAY LỖI CHỮ "C": Nếu JSON trả về là mảng chuỗi ["Chào bạn..."] 
-            // hoặc chuỗi trực tiếp "Chào bạn...", thì nối lại và trả về luôn.
-            if (typeof parsed === 'string') return parsed;
-            if (Array.isArray(parsed) && typeof parsed[0] === 'string') {
-                return parsed.join('\n');
-            }
+            if (typeof parsed === 'string') {
+                content = parsed;
+            } else if (Array.isArray(parsed) && typeof parsed[0] === 'string') {
+                content = parsed.join('\n');
+            } else if (typeof parsed === 'object' && parsed !== null) {
+                // Kiểm tra xem nó có chia thành các key JSON rời rạc không
+                const ketLuan = parsed["Kết luận"] || parsed["ket_luan"] || parsed["ketLuan"] || "";
+                const phanTich = parsed["Phân tích"] || parsed["phan_tich"] || parsed["phanTich"] || "";
+                const coSo = parsed["Cơ sở pháp lý"] || parsed["co_so_phap_ly"] || parsed["coSoPhapLy"] || "";
+                const loiKhuyen = parsed["Lời khuyên"] || parsed["loi_khuyen"] || parsed["loiKhuyen"] || "";
 
-            const data = Array.isArray(parsed) ? parsed[0] : parsed;
-
-            // Đảm bảo data là một Object thì mới bắt đầu trích xuất Key
-            if (typeof data !== 'object' || data === null) {
-                return String(data);
-            }
-
-            // 2. KIỂM TRA TRƯỜNG HỢP CÂU HỎI PHÁP LÝ (Có các key chuẩn)
-            const ketLuan = data["Kết luận"] || data["ket_luan"] || data["ketLuan"] || "";
-            const phanTich = data["Phân tích"] || data["phan_tich"] || data["phanTich"] || "";
-            const coSo = data["Cơ sở pháp lý"] || data["co_so_phap_ly"] || data["coSoPhapLy"] || "";
-            const loiKhuyen = data["Lời khuyên"] || data["loi_khuyen"] || data["loiKhuyen"] || "";
-
-            if (ketLuan || phanTich || coSo || loiKhuyen) {
-                let mdText = "";
-                if (ketLuan) mdText += `⚖️ **Kết luận:**\n${ketLuan}\n\n`;
-                if (phanTich) mdText += `🔍 **Phân tích:**\n${phanTich}\n\n`;
-                
-                if (coSo) {
-                    mdText += `📚 **Cơ sở pháp lý:**\n`;
-                    if (Array.isArray(coSo)) {
-                        coSo.forEach(item => mdText += `- ${item}\n`);
-                    } else {
-                        mdText += `${coSo}\n`;
+                if (ketLuan || phanTich || coSo || loiKhuyen) {
+                    let mdText = "";
+                    if (ketLuan) mdText += `**Kết luận:**\n${ketLuan}\n\n`;
+                    if (phanTich) mdText += `**Phân tích:**\n${phanTich}\n\n`;
+                    if (coSo) {
+                        mdText += `**Cơ sở pháp lý:**\n`;
+                        if (Array.isArray(coSo)) coSo.forEach(item => mdText += `- ${item}\n`);
+                        else mdText += `${coSo}\n`;
+                        mdText += `\n`;
                     }
-                    mdText += `\n`;
+                    if (loiKhuyen) mdText += `**Lời khuyên:**\n${loiKhuyen}\n\n`;
+                    content = mdText.trim();
+                } else {
+                    // NẾU LÀ DẠNG { "answer": "Nội dung..." } -> Bóc lấy nội dung bên trong
+                    content = parsed.answer || parsed.text || parsed.message || parsed.response || Object.values(parsed)[0] || text;
                 }
-                
-                if (loiKhuyen) mdText += `💡 **Lời khuyên:**\n${loiKhuyen}\n\n`;
-                
-                return mdText.trim();
             }
-
-            // 3. KIỂM TRA TRƯỜNG HỢP GIAO TIẾP THÔNG THƯỜNG BỊ BỌC JSON LẠ
-            // AI bị ép trả JSON nên sẽ tự bịa ra các key 
-            const fallbackText = data["text"] || data["message"] || data["response"] || data["reply"] || data["câu_trả_lời"] || data["phản_hồi"] || data["Phản hồi"];
-            if (fallbackText) return fallbackText;
-
-            // Nếu nó tạo ra key lạ, lôi ra Value là String đầu tiên (tránh lấy nhầm Array/Object)
-            const firstStringValue = Object.values(data).find(val => typeof val === 'string' && val.trim() !== '');
-            if (firstStringValue) return firstStringValue;
-
-            // Bí quá không bóc được thì in nguyên gốc
-            return text;
-
         } catch (e) {
-            // Nếu JSON.parse báo lỗi -> Nghĩa là AI trả về text/markdown bình thường.
-            return text;
+            // Nếu không phải JSON (AI trả về Text thuần), giữ nguyên để xử lý tiếp
+            content = text;
         }
+
+        // Đảm bảo dữ liệu đầu ra là chuỗi String
+        if (typeof content !== 'string') content = String(content);
+
+        // BƯỚC 2: TỰ ĐỘNG ÉP ĐỊNH DẠNG TIÊU ĐỀ (Xử lý cả text thô và icon cũ)
+        const titles = [
+            { key: 'Kết luận', icon: '⚖️' },
+            { key: 'Phân tích', icon: '🔍' },
+            { key: 'Cơ sở pháp lý', icon: '📚' },
+            { key: 'Lời khuyên', icon: '💡' }
+        ];
+
+        titles.forEach(item => {
+            // Regex này quét sạch icon cũ (nếu có) và ép về định dạng **Tiêu đề:** xuống dòng
+            const regex = new RegExp(`^(\\s*|[⚖️🔍📚💡]\\s*|\\*\\*)*${item.key}(:?\\s*|:?\\*\\*\\s*)?`, 'gmi');
+            content = content.replace(regex, `**${item.key}:**\n`);
+        });
+        // BƯỚC 3: XỬ LÝ MIỄN TRỪ TRÁCH NHIỆM (Disclaimer)
+        content = content.replace(/Nội dung do LegAI cung cấp.*/gi, (match) => `\n\n---\n*${match}*`);
+
+        // BƯỚC 4: DỌN DẸP KHOẢNG TRẮNG THỪA (Tối đa 2 lần xuống dòng để tránh giãn quá rộng)
+        content = content.replace(/\n{3,}/g, '\n\n').trim();
+
+        return content;
     };
+
     return (
-    <motion.div
-        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 20, scale: 0.95 }}
-      
-        className="fixed bottom-24 right-4 md:right-8 w-[95vw] md:w-[420px] h-[min(600px,75vh)] z-[101] flex flex-col pointer-events-auto"
-    >
-        <div className="flex-grow flex flex-col overflow-hidden rounded-[2.5rem] border border-slate-200 bg-white/95 backdrop-blur-3xl shadow-[0_20px_40px_rgba(15,23,42,0.08)]">
+        <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-24 right-4 md:right-8 w-[95vw] md:w-[420px] h-[min(600px,75vh)] z-[101] flex flex-col pointer-events-auto"
+        >
 
-            {/* HEADER  */}
-            <div className="p-5 border-b border-slate-200 bg-slate-50 shrink-0">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-sky-500/15">
-                            <CpuChipIcon className="w-5 h-5 text-cyan-400" />
+            <div className="flex-grow flex flex-col overflow-hidden rounded-[2.5rem] border border-zinc-200 bg-white/95 backdrop-blur-3xl shadow-[0_20px_60px_rgba(0,0,0,0.15)]">
+
+                {/* HEADER */}
+                <div className="p-5 border-b border-zinc-100 bg-zinc-50/80 shrink-0">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-[#B8985D]/10 border border-[#B8985D]/20">
+                                <SparklesIcon className="w-5 h-5 text-[#8E6D45]" />
+                            </div>
+                            <h3 className="text-[11px] font-black text-[#1A2530] tracking-[0.2em] uppercase">AI Assistant</h3>
                         </div>
-                        <h3 className="text-[10px] font-black text-slate-900 tracking-[0.3em] uppercase">LegAI Assistant</h3>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                        {messages.length > 1 && (
-                            <button 
-                                onClick={handleSaveChat}
-                                className="p-2 rounded-xl text-slate-500 hover:text-sky-600 hover:bg-slate-100 transition-all"
+
+                        <div className="flex items-center gap-1">
+                            {/* NÚT NEW CHAT */}
+                            <button
+                                onClick={handleNewChat}
+                                title="Tạo cuộc trò chuyện mới"
+                                className="p-2 rounded-xl text-zinc-400 hover:text-[#B8985D] hover:bg-[#B8985D]/10 transition-colors"
                             >
-                                <CloudArrowUpIcon className="w-5 h-5" />
+                                <PlusIcon className="w-5 h-5 stroke-2" />
                             </button>
-                        )}
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
-                            <XMarkIcon className="w-5 h-5" />
-                        </button>
+
+                            {messages.length > 1 && (
+                                <button
+                                    onClick={handleSaveChat}
+                                    disabled={isSaving || isSaved}
+                                    title={isSaved ? "Đã lưu" : "Lưu phiên chat"}
+                                    className={`p-2 rounded-xl transition-all ${isSaved
+                                        ? 'text-emerald-500 bg-emerald-50 cursor-not-allowed'
+                                        : 'text-zinc-400 hover:text-[#B8985D] hover:bg-[#B8985D]/10'
+                                        }`}
+                                >
+                                    {isSaved ? <CheckBadgeIcon className="w-5 h-5 stroke-2" /> : <CloudArrowUpIcon className="w-5 h-5 stroke-2" />}
+                                </button>
+                            )}
+                            <button onClick={onClose} title="Đóng" className="p-2 hover:bg-red-50 hover:text-red-500 rounded-xl text-zinc-400 transition-colors">
+                                <XMarkIcon className="w-5 h-5 stroke-2" />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* SWITCHER */}
-                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 relative h-10">
-                    <button className="flex-1 flex items-center justify-center gap-2 text-[10px] font-black text-sky-600 z-10">
-                        <SparklesIcon className="w-3.5 h-3.5" /> AI CONSULTANT
-                    </button>
-                </div>
-            </div>
+                {/* CHAT BODY */}
+                <div className="flex-1 p-5 overflow-y-auto space-y-5 custom-scrollbar bg-zinc-50/50 overscroll-contain">
+                    <AnimatePresence mode='popLayout'>
+                        {messages.map((msg) => (
+                            <motion.div
+                                key={msg.id}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}
+                            >
+                                <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed font-medium shadow-sm ${msg.isBot
+                                    ? 'bg-white text-zinc-700 border border-zinc-200 rounded-tl-none'
+                                    : 'bg-[#1A2530] text-white rounded-tr-none'
+                                    }`}>
 
-            {/* CHAT BODY - Vùng này sẽ tự cuộn độc lập */}
-            <div className="flex-1 p-6 overflow-y-auto space-y-4 custom-scrollbar bg-slate-50 overscroll-contain">
-                <AnimatePresence mode='popLayout'>
-                    {messages.map((msg) => (
-                        <motion.div
-                            key={msg.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}
-                        >
-                            <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                                msg.isBot 
-                                ? 'bg-slate-100 text-slate-900 rounded-tl-none border border-slate-200' 
-                                : 'bg-gradient-to-br from-sky-600 to-blue-600 text-white rounded-tr-none shadow-lg shadow-sky-200/40'
-                            }`}>
-                               
-                                {msg.isBot ? (
-                                    msg.text.replace(/"/g, '').trim() === "[CONTACT_LAWYER]" ? (
+                                    {msg.isBot ? (
+                                        msg.text.replace(/"/g, '').trim() === "[CONTACT_LAWYER]" ? (
                                         <LawyerCard />
                                     ) : (
-                                        <div className="prose max-w-none text-sm break-words markdown-chat">
+                                        <div className="prose prose-sm max-w-none text-zinc-700 break-words prose-p:my-1.5 prose-li:my-0.5 prose-ul:my-1.5 prose-hr:my-3">
                                             <ReactMarkdown>
                                                 {formatAIMessage(msg.text)}
                                             </ReactMarkdown>
                                         </div>
-                                    )
-                                ) : (
-                                    <div className="whitespace-pre-wrap break-words">{msg.text}</div>
-                                )}
-                            </div>
-                        </motion.div>
-                    ))}
-                </AnimatePresence>
-                {isLoading && <div className="text-[10px] text-sky-600/70 font-black animate-pulse px-2 uppercase">Processing...</div>}
-                <div ref={messagesEndRef} />
-            </div>
+                                        )
+                                    ) : (
+                                        <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
 
-            {/* INPUT AREA */}
-            <form onSubmit={handleSend} className="p-5 bg-slate-50 border-t border-slate-200 shrink-0">
-                <div className="relative flex items-end gap-2 bg-white border border-slate-200 rounded-3xl px-4 py-2 focus-within:border-sky-500/40 transition-all">
-                    <textarea
-                        ref={textareaRef}
-                        rows={1}
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Hỏi LegAI..."
-                        className="flex-grow py-3 bg-transparent text-sm text-slate-900 outline-none resize-none scrollbar-hide max-h-[100px]"
-                    />
-                    <button
-                        type="submit"
-                        disabled={!input.trim() || isLoading}
-                        className={`mb-2 p-2 rounded-xl transition-all ${!input.trim() || isLoading ? 'text-slate-400' : 'text-sky-600'}`}
-                    >
-                        <PaperAirplaneIcon className="w-6 h-6 -rotate-45" />
-                    </button>
+                    {/* HIỆU ỨNG LOADING  */}
+                    {isLoading && (
+                        <div className="flex justify-start">
+                            <div className="bg-white border border-zinc-200 rounded-2xl rounded-tl-none p-4 flex gap-1.5 shadow-sm">
+                                <div className="w-1.5 h-1.5 bg-[#B8985D] rounded-full animate-bounce"></div>
+                                <div className="w-1.5 h-1.5 bg-[#B8985D] rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                <div className="w-1.5 h-1.5 bg-[#B8985D] rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                            </div>
+                        </div>
+                    )}
+                    <div ref={messagesEndRef} />
                 </div>
-            </form>
-        </div>
-    </motion.div>
-);
+
+                {/* INPUT AREA */}
+                {/* INPUT AREA */}
+                <div className="p-4 bg-white border-t border-zinc-200 shrink-0 rounded-b-[2.5rem]">
+                    {!isLoggedIn && guestCount >= 3 ? (
+                        // GIAO DIỆN CHẶN KIỂU SHOPEE
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex flex-col items-center p-6 bg-gradient-to-b from-zinc-50 to-white rounded-[2rem] border border-dashed border-[#B8985D]/40 shadow-inner"
+                        >
+                            <div className="w-12 h-12 bg-[#B8985D]/10 rounded-full flex items-center justify-center mb-3">
+                                <SparklesIcon className="w-6 h-6 text-[#B8985D]" />
+                            </div>
+                            <p className="text-[13px] font-bold text-zinc-600 text-center mb-4 leading-relaxed">
+                                Bạn đã hết lượt chat thử nghiệm. <br />
+                                <span className="text-[#B8985D]">Đăng nhập</span> để tiếp tục sử dụng LegAI.
+                            </p>
+                            <button
+                                onClick={() => navigate("/login?redirect=/chatbot")}
+                                className="w-full py-3.5 bg-[#1A2530] text-white rounded-2xl text-[13px] font-black hover:bg-[#B8985D] transition-all shadow-xl shadow-zinc-200 active:scale-95"
+                            >
+                                ĐĂNG NHẬP NGAY
+                            </button>
+                            <button
+                                onClick={() => navigate("/register")}
+                                className="mt-3 text-[11px] font-bold text-zinc-400 hover:text-zinc-600 underline underline-offset-4"
+                            >
+                                Tạo tài khoản mới miễn phí
+                            </button>
+                        </motion.div>
+                    ) : (
+                        // Ô NHẬP TEXT BÌNH THƯỜNG
+                        <form onSubmit={handleSend} className="relative flex items-end">
+                            <textarea
+                                ref={textareaRef}
+                                rows={1}
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder={isLoggedIn ? "Nhập câu hỏi pháp lý..." : `Dùng thử (${3 - guestCount} lượt còn lại)...`}
+                                className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3.5 pl-4 pr-12 text-sm font-medium focus:outline-none focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 resize-none transition-all duration-200 custom-scrollbar placeholder:text-zinc-400 text-[#1A2530]"
+                                style={{ minHeight: '48px' }}
+                            />
+                            <button
+                                type="submit"
+                                disabled={!input.trim() || isLoading}
+                                className={`absolute right-1.5 bottom-1.5 h-[36px] w-[36px] flex items-center justify-center rounded-xl transition-all shadow-sm ${!input.trim() || isLoading
+                                    ? 'bg-zinc-100 text-zinc-400'
+                                    : 'bg-[#1A2530] text-white hover:bg-[#B8985D]'
+                                    }`}
+                            >
+                                <PaperAirplaneIcon className="w-4 h-4 stroke-2 -rotate-45" />
+                            </button>
+                        </form>
+                    )}
+                </div>
+            </div>
+        </motion.div>
+    );
 }

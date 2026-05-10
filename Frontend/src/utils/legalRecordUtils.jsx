@@ -7,7 +7,7 @@ import {
     VideoCameraIcon
 } from '@heroicons/react/24/outline';
 
-export const RECORD_TYPES = ['PLANNING', 'ANALYSIS', 'VIDEO_ANALYSIS', 'FORM', 'CHAT'];
+export const RECORD_TYPES = ['PLANNING', 'ANALYSIS', 'VIDEO', 'FORM', 'CHAT'];
 
 export const getTypeConfig = (type) => {
     const safeType = String(type || '').trim().toUpperCase();
@@ -29,7 +29,7 @@ export const getTypeConfig = (type) => {
                 borderColor: 'hover:border-rose-400',
                 badgeStyle: null
             };
-        case 'VIDEO_ANALYSIS':
+        case 'VIDEO':
             return {
                 icon: <VideoCameraIcon className="w-7 h-7 text-orange-600 stroke-2" />,
                 label: 'THẨM ĐỊNH VIDEO',
@@ -101,14 +101,13 @@ export const renderRecordBadge = (record) => {
     const safeType = String(safeRecord.type || '').trim().toUpperCase();
     const config = getTypeConfig(safeType);
 
-    if (safeType === 'ANALYSIS' || safeType === 'VIDEO_ANALYSIS') {
+    if (safeType === 'ANALYSIS' || safeType === 'VIDEO') {
         const score = Number(safeRecord.riskScore ?? 0);
         const isSafe = score >= 80;
 
         return (
-            <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black border tracking-wider ${
-                isSafe ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'
-            }`}>
+            <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black border tracking-wider ${isSafe ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'
+                }`}>
                 {isSafe ? 'AN TOÀN' : 'RỦI RO'} ({score}%)
             </span>
         );

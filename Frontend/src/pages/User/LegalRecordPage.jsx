@@ -35,67 +35,12 @@ export default function LegalRecordPage() {
   // THÊM: Ref để chống spam gọi API khi gõ tìm kiếm
   const searchRef = useRef(null);
 
-  // : Hàm fetch truyền thêm page
-  // const fetchHistory = async (page = 1) => {
-  //     setLoading(true);
-  //     try {
-  //         const token = localStorage.getItem("accessToken");
-  //         const userStr = localStorage.getItem("user");
-
-  //         if (!userStr || !token) {
-  //             console.error("Chưa đăng nhập!");
-  //             setLoading(false);
-  //             return;
-  //         }
-
-  //         const user = JSON.parse(userStr);
-  //         const userId = user.id ?? user.Id ?? user.ID;
-
-  //         // Truyền param lên Backend
-  //         const res = await axios.get(`http://localhost:8000/api/history/${userId}`, {
-  //             params: {
-  //                 page: page,
-  //                 limit: 6,
-  //                 search: searchTerm.trim()
-  //             },
-  //             headers: { 'Authorization': `Bearer ${token}` }
-  //         });
-
-  //         if (res.data && res.data.success) {
-  //             const formattedRecords = res.data.data.map(item => ({
-  //                 id: item.Id,
-  //                 name: item.Title || item.FileName || "Bản ghi không tên",
-  //                 date: new Date(item.CreatedAt).toLocaleDateString('vi-VN'),
-  //                 type: item.RecordType,
-  //                 riskScore: item.RiskScore,
-  //                 fullData: item
-  //             }));
-  //             setRecords(formattedRecords);
-
-  //             // Cập nhật thông tin phân trang từ Backend trả về
-  //             setPagination({
-  //                 currentPage: res.data.currentPage || 1,
-  //                 totalPages: res.data.totalPages || 1,
-  //                 totalDocs: res.data.totalDocs || 0
-  //             });
-  //         }
-  //     } catch (error) {
-  //         console.error("Lỗi tải dữ liệu:", error);
-  //     } finally {
-  //         setLoading(false);
-  //     }
-  // };
-
   const fetchHistory = async (page = 1) => {
     setLoading(true);
     try {
       let res;
 
-      if (USE_MOCK_DATA) {
-        // Sử dụng mock data
-        console.log("🔍 Sử dụng MOCK DATA");
-        res = getMockRecordsResponse(page, 6, searchTerm.trim());
-      } else {
+      {
         // Gọi API thực tế
         const token = localStorage.getItem("accessToken");
         const userStr = localStorage.getItem("user");
@@ -130,9 +75,17 @@ export default function LegalRecordPage() {
           name: item.name || item.Title || item.FileName || "Bản ghi không tên",
           date:
             item.date || new Date(item.CreatedAt).toLocaleDateString("vi-VN"),
+
+          // normalize type
           type: item.type || item.RecordType,
+
           riskScore: item.riskScore || item.RiskScore,
-          fullData: item.fullData || item,
+
+          //  ép fullData luôn chứa AnalysisJson
+          fullData: {
+            ...item,
+            AnalysisJson: item.AnalysisJson || item.analysisJson || item.fullData?.AnalysisJson
+          }
         }));
         setRecords(formattedRecords);
 
@@ -149,12 +102,12 @@ export default function LegalRecordPage() {
     }
   };
 
-  // SỬA: Lắng nghe sự thay đổi của Trang hiện tại
+  // Lắng nghe sự thay đổi của Trang hiện tại
   useEffect(() => {
     fetchHistory(pagination.currentPage);
   }, [pagination.currentPage]);
 
-  // SỬA: Xử lý tìm kiếm (Debounce)
+  //  Xử lý tìm kiếm (Debounce)
   useEffect(() => {
     if (searchRef.current) clearTimeout(searchRef.current);
     searchRef.current = setTimeout(() => {
@@ -169,7 +122,7 @@ export default function LegalRecordPage() {
 
   const handleBack = () => navigate("/");
 
-  // SỬA: Hàm chuyển trang
+  //  Hàm chuyển trang
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setPagination((prev) => ({ ...prev, currentPage: newPage }));
@@ -285,11 +238,10 @@ export default function LegalRecordPage() {
                     <button
                       key={p}
                       onClick={() => handlePageChange(p)}
-                      className={`w-10 h-10 rounded-lg border font-bold text-sm transition-all shadow-sm ${
-                        pagination.currentPage === p
-                          ? "bg-[#1A2530] border-[#1A2530] text-white"
-                          : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-[#B8985D] hover:border-[#B8985D]/50"
-                      }`}
+                      className={`w-10 h-10 rounded-lg border font-bold text-sm transition-all shadow-sm ${pagination.currentPage === p
+                        ? "bg-[#1A2530] border-[#1A2530] text-white"
+                        : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-[#B8985D] hover:border-[#B8985D]/50"
+                        }`}
                     >
                       {p}
                     </button>
