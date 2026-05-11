@@ -271,12 +271,12 @@ const runManualCrawl = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Chỉ được thu thập tối đa 5 URLs mỗi lần' });
         }
 
-        const result = await crawlService.processLegalCrawl(urls, null);
+        const result = await crawlService.processLegalCrawl(urls, global.io);
 
         res.json({ success: true, ...result });
 
     } catch (error) {
-        console.error('❌ [CRITICAL ERROR]', error);
+        console.error(' [CRITICAL ERROR]', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

@@ -1,14 +1,15 @@
 const { sql, pool, poolConnect } = require('../config/db');
 const { Pinecone } = require('@pinecone-database/pinecone');
-const axios = require('axios');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const geminiService = require('./geminiService');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
-// 1. Kiểm tra Key trước khi khởi tạo (Đã thêm JINA_API_KEY)
-if (!process.env.GEMINI_API_KEY || !process.env.PINECONE_API_KEY || !process.env.JINA_API_KEY) {
+puppeteer.use(StealthPlugin());
+
+// 1. Kiểm tra Key trước khi khởi tạo 
+if (!process.env.GEMINI_API_KEY || !process.env.PINECONE_API_KEY) {
     console.error("\n [CẢNH BÁO]: Thiếu API Key trong file .env!");
-    console.error(" Vui lòng kiểm tra GEMINI_API_KEY, PINECONE_API_KEY và JINA_API_KEY.\n");
-    process.exit(1);
+    //process.exit(1);
 }
 
 // Khởi tạo Gemini cho embedding
@@ -20,40 +21,171 @@ const pc = new Pinecone({
     apiKey: process.env.PINECONE_API_KEY
 });
 
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 // Trạng thái crawl
 let crawlStatus = { isRunning: false, current: 0, total: 0, title: '', step: '' };
-
 const getCrawlStatus = () => crawlStatus;
 
 const extremeDeepClean = (text) => {
     if (!text) return "";
     return text
-        // 1. Hàn các từ bị chẻ đôi (nhà nư\nớc -> nhà nước)
         .replace(/([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])[\s]*[\n\r]+[\s]*([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])/gi, '$1$2')
-        // 2. Nối các dòng thuộc cùng một câu
         .replace(/([^.!?:\n])\n(?![A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝ])[\s]*/g, '$1 ')
-        // 3. Fix cứng các cụm từ quan trọng
         .replace(/Qu\s+ốc hội/gi, 'Quốc hội')
         .replace(/Cộng\s+hòa/gi, 'Cộng hòa')
         .replace(/Xã\s+hội/gi, 'Xã hội')
-        // 4. Thu gọn khoảng trắng và định dạng lại đoạn văn
         .replace(/[ \t]+/g, ' ')
         .replace(/\n\s*\n/g, '\n\n')
         .trim();
 };
 
+// ==========================================
+// HÀM PUPPETEER 
+// ==========================================
+async function autoScroll(page) {
+    await page.evaluate(async () => {
+        await new Promise((resolve) => {
+            let distance = 500;
+            let maxScrolls = 300;
+            let scrolls = 0;
+
+            let timer = setInterval(() => {
+                let scrollHeight = document.body.scrollHeight;
+                window.scrollBy(0, distance);
+                scrolls++;
+
+                if ((window.innerHeight + window.scrollY) >= scrollHeight || scrolls >= maxScrolls) {
+                    clearInterval(timer);
+                    resolve();
+                }
+            }, 100);
+        });
+    });
+}
+
+const scrapeContent = async (url) => {
+    const browser = await puppeteer.launch({
+        headless: "new", // Chạy ngầm
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+
+    try {
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+        await autoScroll(page);
+        await new Promise(r => setTimeout(r, 2000));
+
+        const data = await page.evaluate(() => {
+            const noise = [
+                'header', 'footer', '.header', '.footer',
+                '#divLeftControl', '.menu-links', '.sidebar',
+                '.right-col', '#toTop', '.news-relate', '.vb-tabs',
+                '#divRelate', '.box-keyword', '.relate-doc',
+                '.tin-lien-quan', '#pnRight', '.pnRight',
+                '.box-lien-quan', '.tag-list',
+                '[id*="Right"]', '[class*="right"]'
+            ];
+            noise.forEach(s => {
+                const elements = document.querySelectorAll(s);
+                elements.forEach(el => el.style.display = 'none');
+            });
+
+            const title = document.querySelector('h1')?.innerText.trim() ||
+                document.querySelector('.title-vb')?.innerText.trim() ||
+                document.querySelector('.title-vbp')?.innerText.trim() ||
+
+                "Không tìm thấy tiêu đề";
+
+            const contentSelectors = ['#divNoiDung', '.content-vb', '.content-html', '#ctl00_CPH_Main_ctl00_pnlContent'];
+
+            let mainContent = "";
+            for (let s of contentSelectors) {
+                const el = document.querySelector(s);
+                if (el && el.innerText.length > 500) {
+                    mainContent = el.innerText;
+                    break;
+                }
+            }
+
+            if (!mainContent) {
+                const allDivs = Array.from(document.querySelectorAll('div'));
+                const legalDiv = allDivs.find(d => d.innerText.includes('Điều 1.') && d.innerText.length > 1000);
+                if (legalDiv) mainContent = legalDiv.innerText;
+            }
+
+            let finalContent = mainContent ? mainContent.trim() : "Lỗi: Không tìm thấy nội dung.";
+
+            // CẮT ĐẦU
+            const startKeywords = ["CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM", "QUỐC HỘI", "CHÍNH PHỦ", "ỦY BAN NHÂN DÂN"];
+            let firstIndex = -1;
+            for (let kw of startKeywords) {
+                let idx = finalContent.indexOf(kw);
+                if (idx !== -1 && idx < 2000) {
+                    if (firstIndex === -1 || idx < firstIndex) {
+                        firstIndex = idx;
+                    }
+                }
+            }
+            if (firstIndex > 0) {
+                finalContent = finalContent.substring(firstIndex);
+            }
+
+            // TÌM MỎ NEO Ở ĐUÔI
+            const endAnchors = [
+                "CHỦ TỊCH QUỐC HỘI", "TM. ỦY BAN THƯỜNG VỤ QUỐC HỘI",
+                "TM. CHÍNH PHỦ", "THỦ TƯỚNG CHÍNH PHỦ",
+                "KT. BỘ TRƯỞNG", "Nơi nhận:", "CHỦ TỊCH"
+            ];
+            let bestCutIndex = -1;
+            for (let anchor of endAnchors) {
+                let idx = finalContent.lastIndexOf(anchor);
+                if (idx !== -1 && idx > finalContent.length * 0.6) {
+                    let cutPoint = idx + anchor.length + 100;
+                    if (cutPoint > bestCutIndex) {
+                        bestCutIndex = cutPoint;
+                    }
+                }
+            }
+            if (bestCutIndex !== -1) {
+                finalContent = finalContent.substring(0, bestCutIndex);
+            }
+
+            // LƯỚI LỌC RÁC CHỐT HẠ
+            const trashKeywords = [
+                "Lưu trữ", "Ghi chú", "Ý kiến", "Facebook", "Email", "In", "Bài liên quan:",
+                "Từ khóa:", "Văn bản liên quan", "Bản án liên quan",
+                "PHÁP LUẬT DOANH NGHIỆP", "Pháp Luật Thuế", "Chính sách Pháp luật mới",
+                "Tổng hợp toàn văn", "Tiếng Anh |", "Lược đồ |", "Tải về"
+            ];
+            let firstTrashIndex = finalContent.length;
+            for (let kw of trashKeywords) {
+                let idx = finalContent.indexOf(kw, finalContent.length - 1500);
+                if (idx !== -1 && idx < firstTrashIndex) {
+                    firstTrashIndex = idx;
+                }
+            }
+            finalContent = finalContent.substring(0, firstTrashIndex).trim();
+
+            return { title, content: finalContent };
+        });
+        return data;
+    } catch (err) {
+        console.error(" Lỗi Scrape:", err.message);
+        return null;
+    } finally {
+        await browser.close();
+    }
+};
+// ==========================================
+
 const processLegalCrawl = async (urlArray, io) => {
     try {
-        // Cập nhật trạng thái tổng (sử dụng biến toàn cục đã khai báo bên ngoài)
         crawlStatus = { isRunning: true, current: 0, total: urlArray.length, title: '', step: '' };
         console.log("🔍 KIỂM TRA ĐẦU VÀO urlArray:", JSON.stringify(urlArray));
         await poolConnect;
 
         let successCount = 0; let duplicateCount = 0; let failCount = 0;
 
-        // Hàm băm nhỏ văn bản (Chunking)
         function smartChunk(content) {
             if (!content || typeof content !== 'string' || content.length === 0) return [];
             const chunks = [];
@@ -72,26 +204,12 @@ const processLegalCrawl = async (urlArray, io) => {
             return chunks;
         }
 
-        // Hàm làm sạch cấu trúc Markdown cơ bản
-        const cleanMarkdown = (md) => {
-            if (!md) return "";
-            return md
-                .replace(/!\[.*?\]\(.*?\)/g, '')   // XÓA: Hình ảnh có link (VD: ![Image 3](http...))
-                .replace(/!Image\s*\d+/gi, '')     // XÓA: Chữ rác !Image 1, !Image 2
-                .replace(/\*\*([^*]+)\*\*/g, '$1') // Xóa định dạng in đậm
-                .replace(/\*([^*]+)\*/g, '$1')     // Xóa định dạng in nghiêng
-                .replace(/^#+\s*/gm, '')           // Xóa thẻ tiêu đề (headers)
-
-                .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Chuyển link dạng markdown thành text
-                .trim();
-        };
-
         for (let i = 0; i < urlArray.length; i++) {
             const url = String(urlArray[i] || '').trim();
             if (!url) continue;
 
             try {
-                // Bước 1: Kiểm tra dữ liệu trùng lặp trong cơ sở dữ liệu
+                // Kiểm tra trùng lặp
                 const checkResult = await pool.request()
                     .input('url', sql.NVarChar(1000), url)
                     .query('SELECT Id FROM dbo.LegalDocuments WHERE SourceUrl = @url');
@@ -100,86 +218,38 @@ const processLegalCrawl = async (urlArray, io) => {
                     duplicateCount++; continue;
                 }
 
-                // Bước 2: Bóc tách dữ liệu từ URL thông qua API
                 if (io) io.emit('crawl-progress', { ...crawlStatus, current: i + 1, title: 'Đang bóc tách dữ liệu...', step: 'crawl' });
 
-                let crawlResponse;
-                let content = "";
-                let title = "";
-                let retryCount = 0;
-                const maxRetries = 3;
+                console.log(`[Crawl] Đang truy cập URL: ${url}`);
 
-                while (retryCount < maxRetries && content.length < 200) {
-                    try {
-                        crawlResponse = await axios.get(`https://r.jina.ai/${url}`, {
-                            headers: {
-                                'Authorization': `Bearer ${process.env.JINA_API_KEY}`,
-                                'X-Return-Format': 'markdown',
-                                'X-No-Cache': 'true',
-                                'Accept': 'application/json', // trả về định dạng JSON
-                                'X-Target-Selector': '#divContentDoc, article.content, .main-content',
-                                'X-Timeout': '120000'
-                            },
-                            timeout: 125000
-                        });
+                // Gọi Puppeteer thay cho Jina
+                const scrapedData = await scrapeContent(url);
 
-                        const result = crawlResponse.data;
-                        let rawContent = "";
-
-                        if (result && result.data) {
-                            // Trích xuất khi API trả về JSON chuẩn
-                            rawContent = result.data.content || "";
-                            title = result.data.title || "";
-                        } else if (typeof result === 'string') {
-                            // Trích xuất khi API trả về chuỗi văn bản thuần
-                            rawContent = result;
-                            title = "Văn bản pháp luật";
-                        }
-
-                        // Kết hợp làm sạch định dạng và chuẩn hóa ngữ pháp (sử dụng extremeDeepClean bên ngoài)
-                        content = extremeDeepClean(cleanMarkdown(rawContent));
-
-                        console.log(`[Crawl] Lần thử ${retryCount + 1} | URL: ${url.substring(0, 40)}... | Length: ${content.length}`);
-
-                        if (content.length < 200) {
-                            console.warn(`Nội dung thu được quá ngắn, thử lại sau 10s...`);
-                            await new Promise(r => setTimeout(r, 10000));
-                            retryCount++;
-                        } else {
-                            break;
-                        }
-                    } catch (crawlError) {
-                        console.error(`Lỗi kết nối bóc tách tại lần thử ${retryCount + 1}:`, crawlError.message);
-                        if (crawlError.message.includes('timeout') || crawlError.code === 'ECONNABORTED') {
-                            await new Promise(r => setTimeout(r, 15000));
-                        } else {
-                            break;
-                        }
-                        retryCount++;
-                    }
-                }
-
-                if (content.length < 200) {
-                    console.error(`Bỏ qua URL do nội dung không đạt yêu cầu sau ${maxRetries} lần thử.`);
+                if (!scrapedData || !scrapedData.content || scrapedData.content.length < 200) {
+                    console.error(`Bỏ qua URL do bóc tách thất bại hoặc nội dung quá ngắn.`);
                     failCount++;
                     continue;
                 }
 
-                // Bước 3: Phân loại và trích xuất thông tin
-                const finalCategory = getCategoryFromUrl(url);
-                console.log(`Phân loại: ${finalCategory}`);
+                // Áp dụng DeepClean 
+                const title = scrapedData.title;
+                const content = extremeDeepClean(scrapedData.content);
 
-                const docNumMatch = content.match(/([0-9]{1,4}\/[0-9]{4}\/[A-ZĐ0-9\-]{2,10})/);
+                console.log(`[Crawl] Hoàn tất bóc tách | Độ dài: ${content.length}`);
+
+                // Phân loại và ID
+                const finalCategory = getCategoryFromUrl(url);
+                const docNumMatch = content.substring(0, 1000).match(/([0-9]{1,4}\/[0-9]{4}\/[A-ZĐ0-9\-]{2,10})/);
                 const documentNumber = docNumMatch ? docNumMatch[1] : "Đang cập nhật";
                 const yearMatch = documentNumber.match(/\d{4}/) || content.match(/năm\s+(20\d{2})/i);
                 const issueYear = yearMatch ? parseInt(yearMatch[0] || yearMatch[1]) : new Date().getFullYear();
 
-                // Bước 4: Lưu trữ vào SQL Server
-                // Bóc tách slug cuối cùng của URL để làm ID (VD: nghi-dinh-89-2026-nd-cp...)
-                const slugMatch = url.match(/\/van-ban\/[^\/]+\/([^\.]+)\.aspx/);
-                let documentId = slugMatch ? slugMatch[1].toLowerCase() : `doc-${Date.now()}`;
+                const idSource = (documentNumber && documentNumber !== "Đang cập nhật") ? documentNumber : title;
+                let documentId = convertLegalStringToSlug(idSource);
 
-                documentId = documentId.substring(0, 100).replace(/[^a-z0-9-]/g, '-');
+                console.log(`Generated document ID: ${documentId}`);
+
+                // Lưu SQL
                 await pool.request()
                     .input('id', sql.NVarChar(100), documentId)
                     .input('title', sql.NVarChar(500), title)
@@ -197,7 +267,7 @@ const processLegalCrawl = async (urlArray, io) => {
                         (@id, @title, @docNum, @year, N'Còn hiệu lực', @category, @content, @sourceUrl, GETDATE(), @syncSsms, @syncPinecone)
                     `);
 
-                // Bước 5: Phân mảnh và nhúng Vector vào hệ cơ sở dữ liệu
+                // Embedding & Pinecone 
                 if (io) io.emit('crawl-progress', { ...crawlStatus, current: i + 1, title: 'Đang tạo vector...', step: 'pinecone' });
 
                 const chunkData = smartChunk(content);
@@ -225,7 +295,7 @@ const processLegalCrawl = async (urlArray, io) => {
                         if (chunkError.message && chunkError.message.includes('429')) {
                             console.log(`Quá tải API nhúng Vector, tạm nghỉ 30 giây...`);
                             await new Promise(r => setTimeout(r, 30000));
-                            chunkIdx--; // Lùi lại index để thử lại chunk hiện tại
+                            chunkIdx--;
                             continue;
                         } else {
                             console.error(`Lỗi tạo vector tại chunk ${chunkIdx}:`, chunkError.message);
@@ -237,7 +307,6 @@ const processLegalCrawl = async (urlArray, io) => {
                     for (let j = 0; j < vectors.length; j += 50) {
                         await index.upsert(vectors.slice(j, j + 50));
                     }
-
                     await pool.request()
                         .input('id', sql.NVarChar(100), documentId)
                         .query("UPDATE LegalDocuments SET SyncStatusPinecone = 'success' WHERE Id = @id");
@@ -257,8 +326,15 @@ const processLegalCrawl = async (urlArray, io) => {
 
         if (io) io.emit('crawl-progress', {
             isRunning: false,
+
+            current: urlArray.length,
+            total: urlArray.length,
+
+
+
             title: 'Hoàn thành!',
-            result: { successCount, duplicateCount, failCount } 
+            step: 'done',
+            result: { successCount, duplicateCount, failCount }
         });
         return { successCount, duplicateCount, failCount };
 
@@ -267,46 +343,33 @@ const processLegalCrawl = async (urlArray, io) => {
         throw error;
     }
 };
-// Hàm map URL sang Category 
-const getCategoryFromUrl = (url) => {
-    // Danh sách map từ URL sang tên hiển thị 
-    const categoryMap = {
-        'Bo-may-hanh-chinh': 'Bộ máy hành chính',
-        'Van-hoa-Xa-hoi': 'Văn hóa - Xã hội',
-        'Tai-chinh-nha-nuoc': 'Tài chính nhà nước',
-        'The-thao-Y-te': 'Thể thao - Y tế',
-        'Tai-nguyen-Moi-truong': 'Tài nguyên - Môi trường',
-        'Thuong-mai': 'Thương mại',
-        'Bat-dong-san': 'Bất động sản',
-        'Xay-dung-Do-thi': 'Xây dựng - Đô thị',
-        'Giao-duc': 'Giáo dục',
-        'Dau-tu': 'Đầu tư',
-        'Lao-dong-Tien-luong': 'Lao động - Tiền lương',
-        'Cong-nghe-thong-tin': 'Công nghệ thông tin',
-        'Giao-thong-Van-tai': 'Giao thông - Vận tải',
-        'Doanh-nghiep': 'Doanh nghiệp',
-        'Thue-Phi-Le-Phi': 'Thuế - Phí - Lệ phí',
-        'Bao-hiem': 'Bảo hiểm',
-        'Tien-te-Ngan-hang': 'Tiền tệ - Ngân hàng',
-        'Xuat-nhap-khau': 'Xuất nhập khẩu',
-        'Quyen-dan-su': 'Quyền dân sự',
-        'Vi-pham-hanh-chinh': 'Vi phạm hành chính',
-        'Thu-tuc-To-tung': 'Thủ tục Tố tụng',
-        'Trach-nhiem-hinh-su': 'Trách nhiệm hình sự',
-        'Ke-toan-Kiem-toan': 'Kế toán - Kiểm toán',
-        'Dich-vu-phap-ly': 'Dịch vụ pháp lý',
-        'So-huu-tri-tue': 'Sở hữu trí tuệ',
-        'Chung-khoan': 'Chứng khoán'
-    };
 
-    // Bóc tách slug từ URL: /van-ban/Linh-Vuc/...
+const getCategoryFromUrl = (url) => {
+    const categoryMap = {
+        'Bo-may-hanh-chinh': 'Bộ máy hành chính', 'Van-hoa-Xa-hoi': 'Văn hóa - Xã hội', 'Tai-chinh-nha-nuoc': 'Tài chính nhà nước', 'The-thao-Y-te': 'Thể thao - Y tế', 'Tai-nguyen-Moi-truong': 'Tài nguyên - Môi trường', 'Thuong-mai': 'Thương mại', 'Bat-dong-san': 'Bất động sản', 'Xay-dung-Do-thi': 'Xây dựng - Đô thị', 'Giao-duc': 'Giáo dục', 'Dau-tu': 'Đầu tư', 'Lao-dong-Tien-luong': 'Lao động - Tiền lương', 'Cong-nghe-thong-tin': 'Công nghệ thông tin', 'Giao-thong-Van-tai': 'Giao thông - Vận tải', 'Doanh-nghiep': 'Doanh nghiệp', 'Thue-Phi-Le-Phi': 'Thuế - Phí - Lệ phí', 'Bao-hiem': 'Bảo hiểm', 'Tien-te-Ngan-hang': 'Tiền tệ - Ngân hàng', 'Xuat-nhap-khau': 'Xuất nhập khẩu', 'Quyen-dan-su': 'Quyền dân sự', 'Vi-pham-hanh-chinh': 'Vi phạm hành chính', 'Thu-tuc-To-tung': 'Thủ tục Tố tụng', 'Trach-nhiem-hinh-su': 'Trách nhiệm hình sự', 'Ke-toan-Kiem-toan': 'Kế toán - Kiểm toán', 'Dich-vu-phap-ly': 'Dịch vụ pháp lý', 'So-huu-tri-tue': 'Sở hữu trí tuệ', 'Chung-khoan': 'Chứng khoán'
+    };
     const match = url.match(/\/van-ban\/([^\/]+)\//);
     const slug = match ? match[1] : null;
-
     return categoryMap[slug] || 'Lĩnh vực khác';
 };
+
+const convertLegalStringToSlug = (str) => {
+    if (!str) return '';
+    return str
+        .toString()
+        .toLowerCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[đĐ]/g, 'd')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
+};
+
 module.exports = {
     processLegalCrawl,
     getCrawlStatus,
-    getCategoryFromUrl
+    getCategoryFromUrl,
+    convertLegalStringToSlug
 };

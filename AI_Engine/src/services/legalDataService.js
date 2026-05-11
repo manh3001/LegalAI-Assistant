@@ -41,29 +41,63 @@ const upsertLegalData = async (data, isUpdate = false) => {
     let ssmsStatus = 'syncing';
     let pineconeStatus = 'syncing';
 
+
+
     try {
         let finalContent = data.content;
         let shouldReVectorize = true;
 
-        if (isUpdate) {
-            documentId = data.id;
+        // 1. TẠO ID NHẤT QUÁN: Ưu tiên Số hiệu văn bản -> Nếu không có mới dùng Tiêu đề
+        // Ưu tiên Số hiệu văn bản làm ID để khớp với dữ liệu Crawl
+        const idSource = (data.documentNumber && data.documentNumber.trim() !== '')
+            ? data.documentNumber
+            : data.title;
+        documentId = convertLegalStringToSlug(idSource);
 
-            // 1. LẤY DATA CŨ BẢO VỆ NỘI DUNG (Tránh bị xóa trắng do UI gửi lên rỗng)
+        // 2. CHECK TỒN TẠI & XỬ LÝ THEO PHƯƠNG ÁN B (Vá lỗi đồng bộ)
+        if (!isUpdate) {
+            const checkStatus = await pool.request()
+                .input('id', documentId)
+                .query('SELECT SyncStatusSsms, SyncStatusPinecone, Content FROM LegalDocuments WHERE Id = @id');
+
+            const existingDoc = checkStatus.recordset[0];
+
+            if (existingDoc) {
+                if (existingDoc.SyncStatusPinecone === 'success') {
+                    return {
+                        success: false,
+                        error: 'DUPLICATE_DOCUMENT',
+                        message: 'Văn bản đã tồn tại và đã được vector hóa thành công.'
+                    };
+                } else {
+                    // Nếu đã có trong SQL nhưng Pinecone lỗi: Ép sang chế độ Update để vá lỗi
+                    console.log(`[legalDataService] Phát hiện lỗi đồng bộ cho ID: ${documentId}. Tự động chuyển sang Retry Sync.`);
+                    isUpdate = true;
+                    data.id = documentId; // Đảm bảo có ID để chạy query Update bên dưới
+                }
+            }
+        }
+
+        if (isUpdate) {
+            // Dùng ID từ dữ liệu cũ hoặc ID vừa sinh ra ở trên
+            documentId = data.id || documentId;
+
+            // LẤY DATA CŨ ĐỂ SO SÁNH
             const oldDocResult = await pool.request()
                 .input('id', documentId)
                 .query('SELECT Content FROM LegalDocuments WHERE Id = @id');
 
             const oldContent = oldDocResult.recordset[0]?.Content || '';
 
-            // Lấy nội dung mới, nếu rỗng thì dùng lại nội dung cũ
+            // Nếu nội dung mới rỗng -> dùng lại nội dung cũ
             finalContent = (data.content && data.content.trim() !== '') ? data.content : oldContent;
 
-            // 2. KIỂM TRA: Nếu nội dung y hệt cũ -> KHÔNG tốn tiền chạy lại Pinecone
-            if (finalContent === oldContent) {
+            // KIỂM TRA: Nếu nội dung y hệt cũ -> Không cần tốn tiền chạy lại Embedding/Pinecone
+            if (finalContent === oldContent && oldContent !== '') {
                 shouldReVectorize = false;
             }
 
-            // 3. FULL UPDATE XUỐNG SQL
+            // CẬP NHẬT SQL
             await pool.request()
                 .input('id', documentId)
                 .input('title', data.title)
@@ -87,16 +121,50 @@ const upsertLegalData = async (data, isUpdate = false) => {
                     WHERE Id = @id
                 `);
 
-            // Xóa vector cũ nếu cần update lại Vector mới
+         
+           // Chỉ xóa vector cũ nếu nội dung có thay đổi
             if (shouldReVectorize) {
                 try {
-                    await pineconeIndex.deleteMany({ filter: { doc_id: documentId.toString() } });
+                    // Dùng cú pháp trực tiếp không qua filter: { $eq: ... }
+                    await pineconeIndex.deleteMany({ doc_id: documentId.toString() });
                 } catch (err) { console.warn("Lỗi xóa vector cũ Pinecone:", err.message); }
             }
 
         } else {
+            // LUỒNG INSERT MỚI HOÀN TOÀN
+            console.log(`Generated document ID: ${documentId}`);
+
+
+            // 1. CHÈN LOGIC CHECK TỒN TẠI 
+            if (!isUpdate) {
+                // 1. KIỂM TRA ĐỒNG BỘ 
+                const checkStatus = await pool.request()
+                    .input('id', documentId)
+                    .query('SELECT SyncStatusSsms, SyncStatusPinecone FROM LegalDocuments WHERE Id = @id');
+
+                const existingDoc = checkStatus.recordset[0];
+
+                if (existingDoc) {
+                    if (existingDoc.SyncStatusPinecone === 'success') {
+                        // Nếu đã xanh (Vectored), báo lỗi trùng để tránh rác Pinecone
+                        return {
+                            success: false,
+                            error: 'DUPLICATE_DOCUMENT',
+                            message: 'Văn bản đã tồn tại và đã được vector hóa thành công.'
+                        };
+                    } else {
+                        // Nếu chưa xanh, tự động gọi lại hàm này ở chế độ Update để vá lỗi
+                        console.log(`[legalDataService] Phát hiện lỗi đồng bộ cho ID: ${documentId}. Đang tự động Retry Sync...`);
+                        data.id = documentId; // Gán ID để khớp với luồng Update
+                        return upsertLegalData(data, true);
+                    }
+                }
+            }
+
+
             // XỬ LÝ INSERT (Văn bản mới)
             const result = await pool.request()
+                .input('id', documentId)
                 .input('title', data.title)
                 .input('documentNumber', data.documentNumber || null)
                 .input('issueYear', data.issueYear || null)
@@ -106,10 +174,10 @@ const upsertLegalData = async (data, isUpdate = false) => {
                 .input('sourceUrl', data.sourceUrl || null)
                 .query(`
                     INSERT INTO LegalDocuments
-                        (Title, DocumentNumber, IssueYear, Status, Category, Content, CreatedAt, SourceUrl, SyncStatusSsms, SyncStatusPinecone)
+                        (Id, Title, DocumentNumber, IssueYear, Status, Category, Content, CreatedAt, SourceUrl, SyncStatusSsms, SyncStatusPinecone)
                     OUTPUT INSERTED.Id
                     VALUES
-                        (@title, @documentNumber, @issueYear, @status, @category, @content, GETDATE(), @sourceUrl, 'success', 'syncing')
+                        (@id, @title, @documentNumber, @issueYear, @status, @category, @content, GETDATE(), @sourceUrl, 'success', 'syncing')
                 `);
             documentId = result.recordset[0].Id;
         }
@@ -130,7 +198,7 @@ const upsertLegalData = async (data, isUpdate = false) => {
                     id: `${documentId}_${index}`,
                     values: vectorValues,
                     metadata: {
-                        doc_id: documentId.toString(), // 🛠️ FIX BUG: Thêm doc_id để hàm Delete của bạn hoạt động được
+                        doc_id: documentId.toString(),
                         title: data.title,
                         documentNumber: data.documentNumber || null,
                         issueYear: data.issueYear || null,
@@ -142,7 +210,7 @@ const upsertLegalData = async (data, isUpdate = false) => {
             }
 
             if (vectors.length > 0) {
-                await pineconeIndex.upsert({ vectors });
+                await pineconeIndex.upsert(vectors);
             }
         }
 
@@ -155,7 +223,7 @@ const upsertLegalData = async (data, isUpdate = false) => {
         if (ssmsStatus !== 'success') ssmsStatus = 'error';
         pineconeStatus = 'error';
         if (documentId) {
-            try { await updateSyncStatus(documentId, ssmsStatus, pineconeStatus); } catch (updateErr) {}
+            try { await updateSyncStatus(documentId, ssmsStatus, pineconeStatus); } catch (updateErr) { }
         }
         return { success: false, error: error.message, syncStatus: { ssms: ssmsStatus, pinecone: pineconeStatus } };
     }
@@ -169,13 +237,19 @@ const deleteLegalData = async (documentId) => {
 
     try {
         // 1. XÓA TRÊN PINECONE ĐẦU TIÊN
+
+   
         try {
-            // 🛠️ ĐÃ SỬA: Đổi 'documentId' thành 'doc_id' để khớp 100% với metadata lúc nạp
-            await pineconeIndex.deleteMany({ filter: { doc_id: documentId.toString() } });
+            // Bỏ $eq, dùng object trực tiếp - Đây là cách "cứu cánh" khi $eq bị lỗi illegal
+            await pineconeIndex.deleteMany({ 
+                doc_id: documentId.toString() 
+            });
             pineconeStatus = 'success';
+            console.log(` Đã xóa các vector của ID: ${documentId}`);
         } catch (pcError) {
-            console.error(' Lỗi xóa Pinecone (Có thể vector chưa tồn tại):', pcError.message);
-            pineconeStatus = 'error'; // Vẫn ghi nhận lỗi nhưng không làm sập tiến trình xóa SQL
+            // Nếu vẫn lỗi illegal condition, có nghĩa là bản ghi này không có Metadata doc_id
+            console.warn(' Pinecone không tìm thấy vector để xóa hoặc lỗi Filter:', pcError.message);
+            pineconeStatus = 'success'; // Vẫn cho qua để xóa nốt ở SQL
         }
 
         // 2. XÓA TRONG SQL SERVER (SSMS)
@@ -257,6 +331,29 @@ const getDocumentChunks = async (documentId) => {
     }
 
     return chunkText(result.recordset[0].Content, 1500, 200);
+};
+
+/**
+ * Chuyển đổi tiêu đề luật phức tạp thành slug chuyên nghiệp
+ * Ví dụ: "LUẬT ĐẤT ĐAI SỐ 31/2024/QH15, LUẬT NHÀ Ở..." -> "luat-dat-dai-so-31-2024-qh15-luat-nha-o-..."
+ */
+const convertLegalStringToSlug = (str) => {
+    if (!str) return '';
+
+    return str
+        .toString()
+        .toLowerCase()
+        .trim()
+        .normalize('NFD') // Tách dấu
+        .replace(/[\u0300-\u036f]/g, '') // Xóa dấu
+        .replace(/[đĐ]/g, 'd') // Xử lý chữ đ
+        // Thay thế TẤT CẢ các ký tự đặc biệt (/, ,, ., :, ;) và khoảng trắng thành dấu '-'
+        // Chỉ giữ lại chữ cái a-z và số 0-9
+        .replace(/[^a-z0-9]+/g, '-')
+        // Xử lý các dấu gạch ngang bị lặp lại (do dấu phẩy + khoảng trắng tạo ra)
+        .replace(/-+/g, '-')
+        // Cắt bỏ dấu gạch ngang ở đầu và cuối chuỗi
+        .replace(/^-+|-+$/g, '');
 };
 
 module.exports = {

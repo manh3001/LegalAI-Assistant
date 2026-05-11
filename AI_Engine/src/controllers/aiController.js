@@ -30,7 +30,7 @@ exports.ask = async (req, res) => {
 
         // Gọi sang GeminiService 
         const answer = await geminiService.generateAnswerWithGemini(userQuery, relatedDocs);
-        
+
         return res.json({
             success: true,
             answer,

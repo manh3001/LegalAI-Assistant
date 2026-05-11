@@ -68,9 +68,9 @@ export default function AdminCrawler() {
         fetchHistory();
     }, []);
     useEffect(() => {
-      
-        // Lưu ý: backendBase là biến URL server của bạn (VD: 'http://localhost:8000')
-        const socket = io(backendBase); 
+
+        // dùng URL gốc của Server
+        const socket = io('http://localhost:8000');
 
         const handleProgress = (data) => {
             // Khi tiến trình (Auto hoặc Thủ công) báo cáo đã dừng và có kết quả
