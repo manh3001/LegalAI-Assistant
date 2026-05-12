@@ -131,7 +131,7 @@ export default function AdminDashboard() {
     const token = localStorage.getItem('accessToken');
     const socketUrl = 'http://localhost:8000'; // Cùng URL với backend
     const newSocket = io(socketUrl, {
-      auth: { token }
+      //auth: { token }
     });
 
     newSocket.on('connect', () => {
