@@ -13,6 +13,7 @@ import {
     PlusIcon
 } from '@heroicons/react/24/outline';
 import aiClient from '../api/aiClient';
+import LawyerCard from './LawyerCard';
 
 export default function ChatbotAI({ isOpen, onClose }) {
     const navigate = useNavigate();
@@ -286,12 +287,15 @@ export default function ChatbotAI({ isOpen, onClose }) {
                                     }`}>
 
                                     {msg.isBot ? (
-
+                                        msg.text.replace(/"/g, '').trim() === "[CONTACT_LAWYER]" ? (
+                                        <LawyerCard />
+                                    ) : (
                                         <div className="prose prose-sm max-w-none text-zinc-700 break-words prose-p:my-1.5 prose-li:my-0.5 prose-ul:my-1.5 prose-hr:my-3">
                                             <ReactMarkdown>
                                                 {formatAIMessage(msg.text)}
                                             </ReactMarkdown>
                                         </div>
+                                        )
                                     ) : (
                                         <div className="whitespace-pre-wrap break-words">{msg.text}</div>
                                     )}
