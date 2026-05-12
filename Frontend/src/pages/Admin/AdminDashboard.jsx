@@ -17,7 +17,10 @@ import {
   Pause,
   CheckCircle2,
   XCircle,
-  Scale
+  FileText,
+  ClipboardEdit,
+  Scale,
+  MessageSquare
 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
 const backendBase = 'http://localhost:8000/api';
@@ -438,6 +441,8 @@ export default function AdminDashboard() {
               <h3 className="text-xs font-black uppercase tracking-widest text-gray-900">Lịch sử Phân tích AI</h3>
               <Activity size={16} className="text-amber-600" />
             </div>
+
+
             <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar">
               {historyLoading ? (
                 <div className="text-center py-10 text-gray-500">Đang tải lịch sử phân tích...</div>
@@ -446,14 +451,57 @@ export default function AdminDashboard() {
               ) : (
                 <div className="space-y-4">
                   {historyItems.map((item) => (
-                    <div key={item.Id} className="rounded-3xl bg-gray-50 border border-gray-200 p-4 hover:border-amber-200 transition-all">
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <div className="text-[10px] uppercase tracking-[0.25em] text-gray-600">{new Date(item.EventTime).toLocaleString('vi-VN')}</div>
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-black ${item.Outcome === 'Thành công' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                          {item.Outcome}
+                    <div
+                      key={item.Id}
+                      className="group rounded-[2rem] bg-gray-50/50 border border-gray-100 p-4 hover:bg-white hover:border-amber-200 hover:shadow-xl hover:shadow-amber-500/5 transition-all duration-300"
+                    >
+                      {/* Hàng 1: Thời gian & Trạng thái */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">
+                            {new Date(item.EventTime).toLocaleString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              day: '2-digit',
+                              month: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${item.Outcome === 'Success' || item.Outcome === 'Completed' || item.Outcome === 'Thành công'
+                          ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                          }`}>
+                          {item.Outcome === 'Success' || item.Outcome === 'Completed' ? 'Thành công' : item.Outcome}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-900 font-bold leading-snug">Người dùng {item.UserName || item.Email || 'Không rõ'} đã dùng {item.FeatureName || 'tính năng'}.</p>
+
+                      {/* Hàng 2: Nội dung chính với Icon */}
+                      <div className="flex items-start gap-4">
+                        {/* Khung Icon màu sắc theo RecordType */}
+                        <div className={`p-2.5 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-300 ${item.RecordType === 'CONTRACT' ? 'bg-blue-50 text-blue-600' :
+                            item.RecordType === 'CHATBOT' ? 'bg-purple-50 text-purple-600' :
+                              item.RecordType === 'PLANNING' ? 'bg-amber-50 text-amber-600' :
+                                item.RecordType === 'FORM_GEN' ? 'bg-cyan-50 text-cyan-600' :
+                                  item.RecordType === 'VIDEO_ANALYSIS' ? 'bg-rose-50 text-rose-600' : 
+                                    'bg-gray-50 text-gray-600' // Màu fallback cuối cùng
+                          }`}>
+                          {item.RecordType === 'CONTRACT' && <Scale size={18} />}
+                          {item.RecordType === 'CHATBOT' && <MessageSquare size={18} />}
+                          {item.RecordType === 'PLANNING' && <Zap size={18} />}
+                          {item.RecordType === 'FORM_GEN' && <Database size={18} />}
+                          {item.RecordType === 'VIDEO_ANALYSIS' && <Play size={18} />}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-900 leading-tight">
+                            <span className="font-black text-gray-900">{item.FullName || 'Người dùng'}</span>
+                            <span className="text-gray-500 font-medium"> đã sử dụng </span>
+                            <span className="font-black text-amber-600 underline underline-offset-4 decoration-amber-200">
+                              {item.DisplayName}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

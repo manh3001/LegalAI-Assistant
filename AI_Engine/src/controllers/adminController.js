@@ -404,15 +404,9 @@ const getAiHistory = async (req, res) => {
 
         await poolConnect;
 
-        // Đếm tổng số records từ cả 2 bảng
+        // 1. Đếm tổng số records từ bảng ContractHistory (Bao quát 5 chức năng AI)
         const countRequest = pool.request();
-        const countSql = `
-            SELECT COUNT(*) AS total FROM (
-                SELECT Id FROM dbo.VideoHistory
-                UNION ALL
-                SELECT Id FROM dbo.ContractHistory
-            ) AS CombinedHistory
-        `;
+        const countSql = `SELECT COUNT(*) AS total FROM [dbo].[ContractHistory]`;
         const countResult = await countRequest.query(countSql);
         const totalItems = countResult.recordset[0]?.total || 0;
 
@@ -420,23 +414,42 @@ const getAiHistory = async (req, res) => {
         historyRequest.input('Offset', sql.Int, offset);
         historyRequest.input('Limit', sql.Int, limit);
 
-        // sử dụng v.Status và c.Status.
+        // 2. Truy vấn dữ liệu tập trung từ ContractHistory JOIN với Users
         const query = `
-            SELECT Id, FullName, Email, FeatureName, Outcome, EventTime FROM (
-                SELECT v.Id, u.FullName, u.Email, N'VIDEO_ANALYSIS' as FeatureName, v.Status as Outcome, v.CreatedAt as EventTime 
-                FROM [dbo].[VideoHistory] v LEFT JOIN [dbo].[Users] u ON v.UserId = u.Id
-                UNION ALL
-                SELECT c.Id, u.FullName, u.Email, N'CONTRACT_REVIEW' as FeatureName, c.Status as Outcome, c.CreatedAt as EventTime 
-                FROM [dbo].[ContractHistory] c LEFT JOIN [dbo].[Users] u ON c.UserId = u.Id
-            ) AS CombinedHistory
-            ORDER BY EventTime DESC
+            SELECT 
+                h.Id, 
+                u.FullName, 
+                u.Email, 
+                h.RecordType, 
+                h.Status as Outcome, 
+                h.CreatedAt as EventTime,
+                h.Title,
+                h.FileName
+            FROM [dbo].[ContractHistory] h
+            LEFT JOIN [dbo].[Users] u ON h.UserId = u.Id
+            ORDER BY h.CreatedAt DESC
             OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
         `;
         const result = await historyRequest.query(query);
 
+        // 3. Bộ Mapping chuyển đổi RecordType sang tên hiển thị Tiếng Việt
+        const featureLabels = {
+            'CONTRACT': 'Phân tích Hợp đồng',
+            'CHATBOT': 'Chatbot Tư vấn',
+            'PLANNING': 'Lập Kế hoạch AI',
+            'FORM_GEN': 'Sinh Biểu mẫu',
+            'VIDEO_ANALYSIS': 'Phân tích Video'
+        };
+
+        // Thêm trường DisplayName dựa trên mapping
+        const mappedData = result.recordset.map(item => ({
+            ...item,
+            DisplayName: featureLabels[item.RecordType] || item.RecordType
+        }));
+
         res.json({
             success: true,
-            data: result.recordset,
+            data: mappedData,
             currentPage: page,
             totalPages: Math.ceil(totalItems / limit),
             totalItems

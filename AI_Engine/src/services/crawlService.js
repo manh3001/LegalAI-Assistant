@@ -63,6 +63,11 @@ async function autoScroll(page) {
 }
 
 const scrapeContent = async (url) => {
+    // Bước 1: Nhận diện loại văn bản
+    const isCongVan = url.includes('/cong-van/');
+    const minLen = isCongVan ? 200 : 500;
+
+
     const browser = await puppeteer.launch({
         headless: "new", // Chạy ngầm
         args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -101,7 +106,7 @@ const scrapeContent = async (url) => {
             let mainContent = "";
             for (let s of contentSelectors) {
                 const el = document.querySelector(s);
-                if (el && el.innerText.length > 500) {
+                if (el && el.innerText.length > minLen) { // Sử dụng minLen linh hoạt
                     mainContent = el.innerText;
                     break;
                 }
@@ -109,7 +114,7 @@ const scrapeContent = async (url) => {
 
             if (!mainContent) {
                 const allDivs = Array.from(document.querySelectorAll('div'));
-                const legalDiv = allDivs.find(d => d.innerText.includes('Điều 1.') && d.innerText.length > 1000);
+                const legalDiv = allDivs.find(d => d.innerText.includes('Điều 1.') && d.innerText.length > 800);
                 if (legalDiv) mainContent = legalDiv.innerText;
             }
 
@@ -121,16 +126,12 @@ const scrapeContent = async (url) => {
             for (let kw of startKeywords) {
                 let idx = finalContent.indexOf(kw);
                 if (idx !== -1 && idx < 2000) {
-                    if (firstIndex === -1 || idx < firstIndex) {
-                        firstIndex = idx;
-                    }
+                    if (firstIndex === -1 || idx < firstIndex) firstIndex = idx;
                 }
             }
-            if (firstIndex > 0) {
-                finalContent = finalContent.substring(firstIndex);
-            }
+            if (firstIndex > 0) finalContent = finalContent.substring(firstIndex);
 
-            // TÌM MỎ NEO Ở ĐUÔI
+            // TÌM  Ở ĐUÔI
             const endAnchors = [
                 "CHỦ TỊCH QUỐC HỘI", "TM. ỦY BAN THƯỜNG VỤ QUỐC HỘI",
                 "TM. CHÍNH PHỦ", "THỦ TƯỚNG CHÍNH PHỦ",
@@ -167,7 +168,7 @@ const scrapeContent = async (url) => {
             finalContent = finalContent.substring(0, firstTrashIndex).trim();
 
             return { title, content: finalContent };
-        });
+        }, minLen);
         return data;
     } catch (err) {
         console.error(" Lỗi Scrape:", err.message);
@@ -181,7 +182,7 @@ const scrapeContent = async (url) => {
 const processLegalCrawl = async (urlArray, io) => {
     try {
         crawlStatus = { isRunning: true, current: 0, total: urlArray.length, title: '', step: '' };
-        console.log("🔍 KIỂM TRA ĐẦU VÀO urlArray:", JSON.stringify(urlArray));
+        console.log(" KIỂM TRA ĐẦU VÀO url:", JSON.stringify(urlArray));
         await poolConnect;
 
         let successCount = 0; let duplicateCount = 0; let failCount = 0;
@@ -224,8 +225,8 @@ const processLegalCrawl = async (urlArray, io) => {
 
                 // Gọi Puppeteer thay cho Jina
                 const scrapedData = await scrapeContent(url);
-
-                if (!scrapedData || !scrapedData.content || scrapedData.content.length < 200) {
+                const minThreshold = url.includes('/cong-van/') ? 150 : 200;
+                if (!scrapedData || !scrapedData.content || scrapedData.content.length < minThreshold) {
                     console.error(`Bỏ qua URL do bóc tách thất bại hoặc nội dung quá ngắn.`);
                     failCount++;
                     continue;
@@ -239,7 +240,7 @@ const processLegalCrawl = async (urlArray, io) => {
 
                 // Phân loại và ID
                 const finalCategory = getCategoryFromUrl(url);
-                const docNumMatch = content.substring(0, 1000).match(/([0-9]{1,4}\/[0-9]{4}\/[A-ZĐ0-9\-]{2,10})/);
+                const docNumMatch = content.substring(0, 1000).match(/([0-9]{1,4}\/[0-9]{4}\/[A-ZĐ0-9\-]{2,10})\b/);
                 const documentNumber = docNumMatch ? docNumMatch[1] : "Đang cập nhật";
                 const yearMatch = documentNumber.match(/\d{4}/) || content.match(/năm\s+(20\d{2})/i);
                 const issueYear = yearMatch ? parseInt(yearMatch[0] || yearMatch[1]) : new Date().getFullYear();
@@ -248,7 +249,8 @@ const processLegalCrawl = async (urlArray, io) => {
                 let documentId = convertLegalStringToSlug(idSource);
 
                 console.log(`Generated document ID: ${documentId}`);
-
+                // gửi tín hiệu tiến độ để sáng Pipeline
+                if (io) io.emit('crawl-progress', { ...crawlStatus, current: i + 1, title: 'Đang lưu vào SQL Server...', step: 'sql' });
                 // Lưu SQL
                 await pool.request()
                     .input('id', sql.NVarChar(100), documentId)
@@ -329,9 +331,6 @@ const processLegalCrawl = async (urlArray, io) => {
 
             current: urlArray.length,
             total: urlArray.length,
-
-
-
             title: 'Hoàn thành!',
             step: 'done',
             result: { successCount, duplicateCount, failCount }
