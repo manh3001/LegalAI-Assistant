@@ -28,7 +28,33 @@ export default function DocumentViewDetail() {
   useEffect(() => {
     if (id) fetchDetail(id);
   }, [id]);
+  // DocumentViewDetail.jsx
 
+  // Thêm useEffect này để tự động ghi nhận lịch sử xem
+  useEffect(() => {
+    // Chỉ ghi nhận khi đã load xong dữ liệu văn bản (doc) và người dùng đã đăng nhập
+    const userStr = localStorage.getItem("user");
+    if (id && doc && userStr) {
+      const recordView = async () => {
+        try {
+          const token = localStorage.getItem("accessToken");
+          // Gọi API sếp đã sửa ở Bước A trong adminController
+          await axios.post("http://localhost:8000/api/user/record-view", {
+            documentId: doc.Id,      // NVARCHAR(500) khớp SQL sếp vừa chạy
+            documentTitle: doc.Title,
+            documentNumber: doc.DocumentNumber,
+            issueYear: doc.IssueYear
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          console.log(" Đã ghi nhận lịch sử xem vào Database.");
+        } catch (err) {
+          console.error(" Lỗi ghi nhận lịch sử xem:", err);
+        }
+      };
+      recordView();
+    }
+  }, [id, doc]); // Chạy lại mỗi khi ID hoặc dữ liệu văn bản thay đổi
   const handleBack = () => navigate(-1);
 
   const formatDate = (dateStr) => {
@@ -46,11 +72,11 @@ export default function DocumentViewDetail() {
         let cells = line.split('|');
         if (cells.length >= 3) {
           cells[1] = cells[1].replace(/<br\s*\/?>/gi, "[NL]").trim();
-          
+
           let rightCell = cells[2].replace(/<br\s*\/?>/gi, " ").trim();
           const upperVn = "A-ZÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÍÌỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰÝỲỶỸỴĐ";
           const re = new RegExp(`^([${upperVn}\\s]+)\\s+([A-Z][a-z].*)`);
-          
+
           cells[2] = rightCell.replace(re, "$1[NL][NL][NL][NL][NL]**$2**");
         }
         return cells.join('|');
@@ -69,8 +95,8 @@ export default function DocumentViewDetail() {
 
     const lines = cleaned.split('\n');
     const firstChapterIndex = lines.findIndex(l => {
-        const line = l.trim().toUpperCase().replace(/[#*]/g, "").replace(/<BR\s*\/?>/gi, " "); 
-        return line.startsWith("CHƯƠNG") || line.startsWith("PHẦN") || line.startsWith("ĐIỀU 1.");
+      const line = l.trim().toUpperCase().replace(/[#*]/g, "").replace(/<BR\s*\/?>/gi, " ");
+      return line.startsWith("CHƯƠNG") || line.startsWith("PHẦN") || line.startsWith("ĐIỀU 1.");
     });
 
     return firstChapterIndex > -1 ? lines.slice(firstChapterIndex).join('\n') : cleaned;
@@ -89,10 +115,10 @@ export default function DocumentViewDetail() {
 
   if (!doc) return <div className="min-h-screen bg-black" />;
 
- return (
+  return (
     // Đổi nền tổng thể thành Xám nhạt (#f8f9fa) để tờ giấy A4 màu Trắng nổi bật lên
     <div className="min-h-screen bg-[#f8f9fa] flex flex-col text-[#1A2530] font-sans selection:bg-[#B8985D]/30 selection:text-[#1A2530]">
-      
+
       {/* HEADER: Kính mờ trắng, viền kẽm */}
       <header className="bg-white/90 border-b border-zinc-200 sticky top-0 z-20 backdrop-blur-xl shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -101,7 +127,7 @@ export default function DocumentViewDetail() {
             <button onClick={handleBack} className="p-2 hover:bg-zinc-100 rounded-full transition-colors text-zinc-500 hover:text-[#1A2530]">
               <ArrowLeftIcon className="w-5 h-5 stroke-2" />
             </button>
-            
+
             <div className="flex flex-col border-l border-zinc-200 pl-4">
               {/* Chữ danh mục: Vàng Đồng */}
               <h1 className="text-[10px] font-black text-[#B8985D] uppercase tracking-[0.2em]">{doc.Category || "VĂN BẢN PHÁP LUẬT"}</h1>
@@ -143,38 +169,38 @@ export default function DocumentViewDetail() {
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
-                h1: ({node, ...props}) => <h1 className="text-center font-bold text-[18px] uppercase mt-10 mb-4" {...props} />,
+                h1: ({ node, ...props }) => <h1 className="text-center font-bold text-[18px] uppercase mt-10 mb-4" {...props} />,
                 // Đã xóa class text-cyan-800 của members ở đây, trả về màu đen chuẩn pháp lý
-                h2: ({node, ...props}) => <h2 className="text-center font-bold text-[17.5px] mt-8 mb-4 uppercase" {...props} />,
-                p: ({node, ...props}) => <p className="indent-8 text-justify leading-[1.85] mb-4 text-[#222] text-[16px]" {...props} />,
-                
-                table: ({node, ...props}) => {
+                h2: ({ node, ...props }) => <h2 className="text-center font-bold text-[17.5px] mt-8 mb-4 uppercase" {...props} />,
+                p: ({ node, ...props }) => <p className="indent-8 text-justify leading-[1.85] mb-4 text-[#222] text-[16px]" {...props} />,
+
+                table: ({ node, ...props }) => {
                   const isNoiNhan = JSON.stringify(node).includes("Nơi nhận");
                   return (
                     <div className="overflow-x-auto my-8">
-                      <table 
-                        className={`w-full border-collapse ${isNoiNhan ? 'border-none' : 'border border-gray-400'}`} 
+                      <table
+                        className={`w-full border-collapse ${isNoiNhan ? 'border-none' : 'border border-gray-400'}`}
                         style={{ border: isNoiNhan ? 'none' : '1px solid #9ca3af' }}
-                        {...props} 
+                        {...props}
                       />
                     </div>
                   );
                 },
-                td: ({node, ...props}) => {
+                td: ({ node, ...props }) => {
                   const contentStr = JSON.stringify(node);
                   const isNoiNhanCell = contentStr.includes("Nơi nhận") || contentStr.includes("NL");
                   return (
-                    <td 
+                    <td
                       className={`p-2 ${isNoiNhanCell ? 'border-none' : 'border border-gray-400'}`}
                       style={{ verticalAlign: 'top', border: isNoiNhanCell ? 'none' : '1px solid #9ca3af' }}
                     >
-                      {React.Children.map(props.children, child => 
+                      {React.Children.map(props.children, child =>
                         typeof child === 'string' ? renderTextWithBr(child) : child
                       )}
                     </td>
                   );
                 },
-                th: ({node, ...props}) => <th className="border border-gray-400 p-2 bg-gray-50 font-bold" {...props} />,
+                th: ({ node, ...props }) => <th className="border border-gray-400 p-2 bg-gray-50 font-bold" {...props} />,
               }}
             >
               {getCleanContent(doc.Content)}

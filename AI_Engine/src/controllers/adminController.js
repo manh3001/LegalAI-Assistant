@@ -232,7 +232,7 @@ const getRecentHistory = async (req, res) => {
             data: result.recordset
         });
     } catch (error) {
-        console.error('❌ [GET HISTORY ERROR]', error);
+        console.error('[GET HISTORY ERROR]', error);
         res.status(500).json({
             success: false,
             message: 'Lỗi server khi lấy lịch sử thu thập',
@@ -392,7 +392,7 @@ const createUser = async (req, res) => {
 
         res.json({ success: true, message: 'Thêm người dùng thành công', userId: newUserId });
     } catch (error) {
-        console.error('❌ Lỗi tạo user:', error);
+        console.error(' Lỗi tạo user:', error);
         res.status(500).json({ success: false, message: 'Lỗi server khi tạo người dùng' });
     }
 };
@@ -433,12 +433,18 @@ const getAiHistory = async (req, res) => {
         const result = await historyRequest.query(query);
 
         // 3. Bộ Mapping chuyển đổi RecordType sang tên hiển thị Tiếng Việt
+        // adminController.js
+
         const featureLabels = {
+            // Các key 
             'CONTRACT': 'Phân tích Hợp đồng',
             'CHATBOT': 'Chatbot Tư vấn',
             'PLANNING': 'Lập Kế hoạch AI',
             'FORM_GEN': 'Sinh Biểu mẫu',
-            'VIDEO_ANALYSIS': 'Phân tích Video'
+            'VIDEO_ANALYSIS': 'Phân tích Video',
+            'VIDEO': 'Phân tích Video',
+            'FORM': 'Sinh Biểu mẫu',
+            'ANALYSIS': 'Phân tích Hợp đồng'
         };
 
         // Thêm trường DisplayName dựa trên mapping
@@ -510,6 +516,96 @@ const getCrawlerStatus = async (req, res) => {
         });
     }
 };
+// adminController.js
+
+const toggleSaveLaw = async (req, res) => {
+    try {
+        // Bốc đủ Metadata từ body để lưu vào DB
+        const { documentId, documentTitle, documentNumber, issueYear } = req.body;
+        const userId = req.user.id; 
+
+        if (!documentId) return res.status(400).json({ success: false, message: 'Thiếu DocumentId' });
+
+        await poolConnect;
+        const request = pool.request();
+        request.input('UserId', sql.BigInt, userId);
+        request.input('DocumentId', sql.NVarChar(500), documentId);
+        request.input('DocumentTitle', sql.NVarChar(500), documentTitle);
+        request.input('DocumentNumber', sql.NVarChar(100), documentNumber || '');
+        request.input('IssueYear', sql.Int, issueYear || null);
+
+        const query = `
+            IF EXISTS (SELECT 1 FROM UserSavedLaws WHERE UserId = @UserId AND DocumentId = @DocumentId)
+            BEGIN
+                DELETE FROM UserSavedLaws WHERE UserId = @UserId AND DocumentId = @DocumentId;
+                SELECT 'Removed' AS Action;
+            END
+            ELSE
+            BEGIN
+                -- Thêm đầy đủ thông tin để bảng SavedLaws không bị rỗng các cột quan trọng
+                INSERT INTO UserSavedLaws (UserId, DocumentId, DocumentTitle, DocumentNumber, IssueYear) 
+                VALUES (@UserId, @DocumentId, @DocumentTitle, @DocumentNumber, @IssueYear);
+                SELECT 'Added' AS Action;
+            END
+        `;
+
+        const result = await request.query(query);
+        res.json({ success: true, action: result.recordset[0].Action });
+    } catch (error) {
+        console.error('Lỗi toggle save law:', error);
+        res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+};
+
+const recordRecentView = async (req, res) => {
+    try {
+        const { documentId, documentTitle, documentNumber, issueYear } = req.body;
+        const userId = req.user.id; // Lấy userId từ token
+
+        if (!documentId || typeof documentId !== 'string') {
+            return res.status(400).json({ success: false, message: 'DocumentId phải là chuỗi hợp lệ' });
+        }
+
+        await poolConnect;
+        const request = pool.request();
+        request.input('UserId', sql.BigInt, userId);
+        request.input('DocumentId', sql.NVarChar(500), documentId);
+        request.input('ViewedAt', sql.DateTime, new Date());
+        request.input('DocumentTitle', sql.NVarChar(sql.MAX), documentTitle);
+        request.input('DocumentNumber', sql.NVarChar(50), documentNumber);
+        request.input('IssueYear', sql.Int, issueYear);
+        const query = `
+            MERGE INTO UserRecentlyViewed AS target
+            USING (SELECT @UserId AS UserId, @DocumentId AS DocumentId) AS source
+            ON target.UserId = source.UserId AND target.DocumentId = source.DocumentId
+            WHEN MATCHED THEN
+                UPDATE SET ViewedAt = @ViewedAt
+            WHEN NOT MATCHED THEN
+                INSERT (UserId, DocumentId, ViewedAt, DocumentTitle, DocumentNumber, IssueYear) VALUES (@UserId, @DocumentId, @ViewedAt, @DocumentTitle, @DocumentNumber, @IssueYear);
+        `;
+
+        await request.query(query);
+
+        res.json({ success: true, message: 'Ghi nhận lượt xem thành công' });
+    } catch (error) {
+        console.error('Lỗi khi record recent view:', error);
+        res.status(500).json({ success: false, message: 'Lỗi server khi ghi nhận lượt xem' });
+    }
+};
+// adminController.js
+
+// adminController.js
+const getRandomLawyers = async (req, res) => {
+    try {
+        await poolConnect;
+        const result = await pool.request().query(
+            "SELECT TOP 1 FullName, Phone, Specialty FROM Lawyers WHERE IsActive = 1 ORDER BY NEWID()"
+        );
+        res.json({ success: true, data: result.recordset[0] });
+    } catch (error) {
+        res.status(500).json({ success: false });
+    }
+};
 
 module.exports = {
     getSystemStats,
@@ -524,5 +620,8 @@ module.exports = {
     toggleUserBan,
     getAiHistory,
     getFeatureUsage,
-    getCrawlerStatus
+    getCrawlerStatus,
+    toggleSaveLaw,
+    recordRecentView,
+    getRandomLawyers
 };

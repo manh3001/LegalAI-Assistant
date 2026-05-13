@@ -495,7 +495,7 @@ export default function AdminDashboard() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-900 leading-tight">
                             <span className="font-black text-gray-900">{item.FullName || 'Người dùng'}</span>
-                            <span className="text-gray-500 font-medium"> đã sử dụng </span>
+                            <span className="text-gray-500 font-medium"> đã dùng </span>
                             <span className="font-black text-amber-600 underline underline-offset-4 decoration-amber-200">
                               {item.DisplayName}
                             </span>

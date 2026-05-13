@@ -77,13 +77,13 @@ const getDocumentChunks = async (req, res) => {
 };
 const getCategories = async (req, res) => {
     try {
-        // 1. Gọi đúng những gì ông đã export ở db.js
+        // 1. Gọi đúng những gì  đã export ở db.js
         const { pool, poolConnect } = require('../config/db');
 
-        // 2. Chắc chắn rằng pool đã kết nối thành công trước khi truy vấn
+        // 2. pool đã kết nối thành công trước khi truy vấn
         await poolConnect;
 
-        // 3. Lấy cái pool đó ra phang thẳng câu Query luôn
+        // 3. u Query
         const result = await pool.request().query(
             "SELECT DISTINCT Category FROM LegalDocuments WHERE Category IS NOT NULL"
         );
@@ -92,7 +92,7 @@ const getCategories = async (req, res) => {
         res.json({ success: true, data: result.recordset.map(r => r.Category) });
 
     } catch (error) {
-        console.error('🔥🔥 Lỗi chí mạng tại getCategories:', error.message);
+        console.error(' Lỗi  tại getCategories:', error.message);
         res.status(500).json({ success: false, message: error.message });
     }
 };

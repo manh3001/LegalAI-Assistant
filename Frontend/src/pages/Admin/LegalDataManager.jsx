@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AdminSidebar from '../../components/AdminSidebar';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
     Plus, Edit2, Trash2, Eye, Search, Filter,
     AlertTriangle, CheckCircle2, XCircle, Loader2,
@@ -25,7 +27,7 @@ export default function LegalDataManager() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterCategory, setFilterCategory] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
-    const [activeMenuId, setActiveMenuId] = useState(null); // Quản lý ID của hàng đang mở Menu
+    const [activeMenuId, setActiveMenuId] = useState(null);
 
     // Modal states
     const [showAddModal, setShowAddModal] = useState(false);
@@ -156,7 +158,7 @@ export default function LegalDataManager() {
 
     const handleUpdate = async (e) => {
         e.preventDefault();
-        
+
         // 1. Nới lỏng Validation: Chỉ bắt buộc Tiêu đề, cho phép sửa mỗi Category
         if (!formData.title.trim()) {
             alert('Tiêu đề văn bản không được để trống!');
@@ -166,7 +168,7 @@ export default function LegalDataManager() {
         setModalLoading(true);
         try {
             const token = localStorage.getItem('accessToken');
-            
+
             // 2. Full Update: Bắt nguyên cục Form State gửi đi (Đã tự động gồm Title, Category, v.v...)
             const payload = {
                 title: formData.title,
@@ -229,25 +231,25 @@ export default function LegalDataManager() {
         }
     };
 
-    const handleViewChunks = async (doc) => {
+
+
+    const handleViewDetail = async (doc) => {
         setSelectedDoc(doc);
-        setChunksLoading(true);
-        setShowChunksModal(true);
+        setChunksLoading(true); // Tạm dùng loading cũ
+        setShowChunksModal(true); // Tạm dùng modal cũ
 
         try {
             const token = localStorage.getItem('accessToken');
-            const response = await axios.get(`${API_BASE}/${doc.Id}/chunks`, {
+            // Gọi API lấy Full Detail (giống bên Tra cứu) để có đủ Content, Agency, IssueDate...
+            const response = await axios.get(`http://localhost:8000/api/documents/${doc.Id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             if (response.data.success) {
-                setChunksData(response.data.data || []);
-            } else {
-                setChunksData([]);
+                setSelectedDoc(response.data.data); // Ghi đè bằng dữ liệu đầy đủ
             }
         } catch (error) {
-            console.error('Lỗi khi tải chunks:', error);
-            setChunksData([]);
+            console.error('Lỗi khi tải chi tiết văn bản:', error);
         } finally {
             setChunksLoading(false);
         }
@@ -420,10 +422,10 @@ export default function LegalDataManager() {
                                                         <div className="fixed inset-0 z-10" onClick={() => setActiveMenuId(null)}></div>
                                                         <div className="absolute right-6 top-14 w-44 bg-white border border-gray-200 rounded-2xl shadow-2xl z-20 overflow-hidden backdrop-blur-2xl py-1 animate-in fade-in zoom-in duration-150">
                                                             <button
-                                                                onClick={() => { handleViewChunks(item); setActiveMenuId(null); }}
+                                                                onClick={() => { handleViewDetail(item); setActiveMenuId(null); }}
                                                                 className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50 transition-colors"
                                                             >
-                                                                <Eye size={14} /> Xem Chunks
+                                                                <Eye size={14} /> Xem Chi Tiết
                                                             </button>
                                                             <button
                                                                 onClick={() => { handleEdit(item); setActiveMenuId(null); }}
@@ -510,7 +512,7 @@ export default function LegalDataManager() {
                                             onChange={handleFormChange}
                                             className="w-full bg-gray-50 border border-gray-200 text-gray-900 px-3 py-2 rounded-xl outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
                                             placeholder="Ví dụ: Điều 117. Điều kiện có hiệu lực của giao dịch dân sự"
-                                            
+
                                         />
                                     </div>
                                     <div>
@@ -639,7 +641,7 @@ export default function LegalDataManager() {
                                             value={formData.title}
                                             onChange={handleFormChange}
                                             className="w-full bg-gray-50 border border-gray-200 text-gray-900 px-3 py-2 rounded-xl outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-                                           
+
                                         />
                                     </div>
                                     <div>
@@ -715,7 +717,7 @@ export default function LegalDataManager() {
                                         onChange={handleFormChange}
                                         rows={8}
                                         className="w-full bg-gray-50 border border-gray-200 text-gray-900 px-3 py-2 rounded-xl outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-                                        
+
                                     />
                                 </div>
 
@@ -740,40 +742,67 @@ export default function LegalDataManager() {
                     </div>
                 )}
 
-                {/* Chunks Modal */}
+                {/* hiển thị full */}
                 {showChunksModal && (
-                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-                        <div className={`${glassClass} w-full max-w-4xl mx-4 rounded-3xl p-6 max-h-[90vh] overflow-y-auto`}>
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Preview Chunks</h2>
-                                <button
-                                    onClick={() => setShowChunksModal(false)}
-                                    className="text-gray-500 hover:text-gray-700 transition-colors"
-                                >
-                                    ✕
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[300] p-4 md:p-10">
+                        <div className="bg-[#f8f9fa] w-full max-w-5xl h-full rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-amber-200">
+
+                            {/* Toolbar trên cùng của Modal */}
+                            <div className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
+                                        <Eye size={20} />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-sm font-black text-gray-900 uppercase tracking-tighter">Xem trước nội dung hệ thống</h2>
+                                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">Dữ liệu thực tế đang lưu trong SQL & Pinecone</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowChunksModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-all text-gray-400 hover:text-gray-900">
+                                    <XCircle size={24} />
                                 </button>
                             </div>
 
-                            {chunksLoading ? (
-                                <div className="text-center py-10 text-gray-500">
-                                    <Loader2 className="animate-spin mx-auto mb-2 text-amber-600" size={24} />
-                                    Đang tải chunks...
-                                </div>
-                            ) : chunksData.length === 0 ? (
-                                <div className="text-center py-10 text-gray-500">Không có chunks nào.</div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {chunksData.map((chunk, index) => (
-                                        <div key={index} className="bg-gray-50 rounded-3xl border border-gray-200 p-4">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-xs font-bold uppercase tracking-widest text-amber-600">Chunk {index + 1}</span>
-                                                <span className="text-xs text-gray-500">{chunk.length} ký tự</span>
+                            {/* Vùng hiển thị tờ giấy A4  */}
+                            <div className="flex-1 overflow-y-auto p-10 flex justify-center custom-scrollbar">
+                                {chunksLoading ? (
+                                    <div className="flex flex-col items-center justify-center h-full text-gray-400 uppercase text-[10px] tracking-[0.2em]">
+                                        <Loader2 className="animate-spin mb-4 text-amber-600" size={40} />
+                                        Đang truy xuất bản gốc...
+                                    </div>
+                                ) : (
+                                    <div
+                                        className="w-full max-w-[800px] bg-white text-black shadow-2xl flex flex-col p-[1.5cm_1.2cm] border border-gray-100"
+                                        style={{ fontFamily: "'Times New Roman', Times, serif" }}
+                                    >
+                                        {/* Header chuẩn văn bản (Sử dụng dữ liệu từ selectedDoc) */}
+                                        <div className="flex justify-between items-start mb-8 text-[12px]">
+                                            <div className="text-center min-w-[150px]">
+                                                <p className="font-bold uppercase">{selectedDoc?.Agency || "CƠ QUAN BAN HÀNH"}</p>
+                                                <p className="font-bold">-------</p>
+                                                <p className="mt-1">Số: {selectedDoc?.DocumentNumber}</p>
                                             </div>
-                                            <p className="text-sm text-gray-700 leading-relaxed">{chunk}</p>
+                                            <div className="text-center">
+                                                <p className="font-bold uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                                                <p className="font-bold">Độc lập - Tự do - Hạnh phúc</p>
+                                                <div className="w-24 h-[1px] bg-black mx-auto mt-1"></div>
+                                            </div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
+
+                                        {/* Tiêu đề văn bản */}
+                                        <div className="text-center my-8">
+                                            <h3 className="text-[18px] font-bold uppercase leading-tight">{selectedDoc?.Title}</h3>
+                                        </div>
+
+                                        {/* Nội dung Markdown chuyên nghiệp */}
+                                        <div className="law-content-preview text-justify leading-relaxed text-[15px]">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {selectedDoc?.Content}
+                                            </ReactMarkdown>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -821,9 +850,31 @@ export default function LegalDataManager() {
             </main>
 
             <style>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(34, 211, 238, 0.1); border-radius: 10px; }
-            `}</style>
+    /* 1. Độ rộng tổng thể của thanh cuộn */
+    .custom-scrollbar::-webkit-scrollbar { 
+        width: 8px;              
+        height: 8px; 
+    }
+
+    /* 2. Phần nền bên dưới thanh cuộn (Track) */
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.05); 
+        border-radius: 10px;
+    }
+
+    /* 3. Con trượt (Thumb) */
+    .custom-scrollbar::-webkit-scrollbar-thumb { 
+        background: #B8985D;     
+        border-radius: 10px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+    }
+
+    /* 4. Hiệu ứng khi di chuột vào hoặc kéo trượt */
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { 
+        background: #a6874d;     
+    }
+`}</style>
         </div>
     );
 }

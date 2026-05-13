@@ -3,6 +3,7 @@ const { Pinecone } = require('@pinecone-database/pinecone');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const e = require('express');
 
 puppeteer.use(StealthPlugin());
 
@@ -28,7 +29,7 @@ const getCrawlStatus = () => crawlStatus;
 const extremeDeepClean = (text) => {
     if (!text) return "";
     return text
-        .replace(/([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])[\s]*[\n\r]+[\s]*([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])/gi, '$1$2')
+        .replace(/([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])[\s]*[\n\r]+[\s]*([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])/gi, '$1 $2')
         .replace(/([^.!?:\n])\n(?![A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝ])[\s]*/g, '$1 ')
         .replace(/Qu\s+ốc hội/gi, 'Quốc hội')
         .replace(/Cộng\s+hòa/gi, 'Cộng hòa')
@@ -80,7 +81,7 @@ const scrapeContent = async (url) => {
         await autoScroll(page);
         await new Promise(r => setTimeout(r, 2000));
 
-        const data = await page.evaluate(() => {
+        const data = await page.evaluate((minLen) => {
             const noise = [
                 'header', 'footer', '.header', '.footer',
                 '#divLeftControl', '.menu-links', '.sidebar',
@@ -94,19 +95,24 @@ const scrapeContent = async (url) => {
                 const elements = document.querySelectorAll(s);
                 elements.forEach(el => el.style.display = 'none');
             });
-
             const title = document.querySelector('h1')?.innerText.trim() ||
                 document.querySelector('.title-vb')?.innerText.trim() ||
+                document.querySelector('#ctl00_mainContent_lblTitle')?.innerText.trim() ||
                 document.querySelector('.title-vbp')?.innerText.trim() ||
-
                 "Không tìm thấy tiêu đề";
 
             const contentSelectors = ['#divNoiDung', '.content-vb', '.content-html', '#ctl00_CPH_Main_ctl00_pnlContent'];
 
+            const agency = document.querySelector('.left-header')?.innerText.trim() ||
+                document.querySelector('.content-html p:first-child')?.innerText.trim() || "";
+
+            // 2. Bóc tách Địa danh & Ngày tháng (Phía trên bên phải)
+            const issueDateFull = document.querySelector('.right-header')?.innerText.match(/(.*ngày\s+\d+.*)/i)?.[0] || "";
+
             let mainContent = "";
             for (let s of contentSelectors) {
                 const el = document.querySelector(s);
-                if (el && el.innerText.length > minLen) { // Sử dụng minLen linh hoạt
+                if (el && el.innerText.length > minLen) { // Sử dụng minLen 
                     mainContent = el.innerText;
                     break;
                 }
@@ -167,7 +173,7 @@ const scrapeContent = async (url) => {
             }
             finalContent = finalContent.substring(0, firstTrashIndex).trim();
 
-            return { title, content: finalContent };
+            return { title, agency, issueDateFull, content: finalContent };
         }, minLen);
         return data;
     } catch (err) {
@@ -223,7 +229,7 @@ const processLegalCrawl = async (urlArray, io) => {
 
                 console.log(`[Crawl] Đang truy cập URL: ${url}`);
 
-                // Gọi Puppeteer thay cho Jina
+                // Gọi Puppeteer 
                 const scrapedData = await scrapeContent(url);
                 const minThreshold = url.includes('/cong-van/') ? 150 : 200;
                 if (!scrapedData || !scrapedData.content || scrapedData.content.length < minThreshold) {
@@ -242,10 +248,24 @@ const processLegalCrawl = async (urlArray, io) => {
                 const finalCategory = getCategoryFromUrl(url);
                 const docNumMatch = content.substring(0, 1000).match(/([0-9]{1,4}\/[0-9]{4}\/[A-ZĐ0-9\-]{2,10})\b/);
                 const documentNumber = docNumMatch ? docNumMatch[1] : "Đang cập nhật";
+
+                if (documentNumber === "Đang cập nhật") {
+                    const urlMatch = url.match(/([0-9]{1,4}-[A-Z0-9-]{2,10}-[0-9]{4})/i);
+                    if (urlMatch) documentNumber = urlMatch[1].replace(/-/g, '/');
+                }
+
+                const urlSlug = url.split('/').pop().replace('.aspx', '');
                 const yearMatch = documentNumber.match(/\d{4}/) || content.match(/năm\s+(20\d{2})/i);
                 const issueYear = yearMatch ? parseInt(yearMatch[0] || yearMatch[1]) : new Date().getFullYear();
-
-                const idSource = (documentNumber && documentNumber !== "Đang cập nhật") ? documentNumber : title;
+                let idSource = "";
+                if (documentNumber && documentNumber !== "Đang cập nhật") {
+                    idSource = documentNumber;
+                } else if (title && title !== "Không tìm thấy tiêu đề") {
+                    idSource = title;
+                }
+                else {
+                    idSource = urlSlug;
+                }
                 let documentId = convertLegalStringToSlug(idSource);
 
                 console.log(`Generated document ID: ${documentId}`);
