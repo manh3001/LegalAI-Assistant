@@ -17,6 +17,27 @@ const VALID_CATEGORIES = [
     "Đầu tư", "Doanh nghiệp", "Xuất nhập khẩu", "Sở hữu trí tuệ", "Tiền tệ - Ngân hàng",
     "Bảo hiểm", "Thủ tục Tố tụng", "Hình sự", "Dân sự", "Chứng khoán", "Lĩnh vực khác"
 ];
+
+// Hàm làm sạch nội dung bằng cách loại bỏ phần header dư thừa
+const getCleanContent = (content) => {
+    if (!content) return '';
+
+    const lines = content.split('\n');
+    const keywords = ['QUYẾT ĐỊNH:', 'Điều 1.', 'CHƯƠNG', 'Lệnh:'];
+
+    // Tìm dòng đầu tiên chứa các từ khóa
+    const startIndex = lines.findIndex(line =>
+        keywords.some(keyword => new RegExp(keyword, 'i').test(line))
+    );
+
+    // Nếu tìm thấy, cắt bỏ phần trước đó; nếu không, giữ nguyên
+    if (startIndex > 0) {
+        return lines.slice(startIndex).join('\n').trim();
+    }
+
+    return content.trim();
+};
+
 export default function LegalDataManager() {
     const [lawData, setLawData] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -49,6 +70,7 @@ export default function LegalDataManager() {
         status: 'Còn hiệu lực',
         sourceUrl: ''
     });
+
     useEffect(() => {
         const fetchCategories = async () => {
             try {
@@ -63,7 +85,6 @@ export default function LegalDataManager() {
         };
         fetchCategories();
     }, []);
-
 
     const fetchLawData = async () => {
         try {
@@ -97,12 +118,13 @@ export default function LegalDataManager() {
             setLoading(false);
         }
     };
-    // về trang nhất mỗi khi đổi bộ lọc
+
     useEffect(() => {
         if (currentPage !== 1) {
             setCurrentPage(1);
         }
     }, [searchQuery, filterCategory, filterStatus]);
+
     useEffect(() => {
         fetchLawData();
     }, [currentPage, searchQuery, filterCategory, filterStatus]);
@@ -159,7 +181,6 @@ export default function LegalDataManager() {
     const handleUpdate = async (e) => {
         e.preventDefault();
 
-        // 1. Nới lỏng Validation: Chỉ bắt buộc Tiêu đề, cho phép sửa mỗi Category
         if (!formData.title.trim()) {
             alert('Tiêu đề văn bản không được để trống!');
             return;
@@ -169,18 +190,16 @@ export default function LegalDataManager() {
         try {
             const token = localStorage.getItem('accessToken');
 
-            // 2. Full Update: Bắt nguyên cục Form State gửi đi (Đã tự động gồm Title, Category, v.v...)
             const payload = {
                 title: formData.title,
                 documentNumber: formData.documentNumber,
                 issueYear: formData.issueYear,
-                category: formData.category || 'Lĩnh vực khác', // Default an toàn
+                category: formData.category || 'Lĩnh vực khác',
                 status: formData.status,
                 sourceUrl: formData.sourceUrl,
-                content: formData.content // Gửi luôn nội dung cũ/mới nếu có
+                content: formData.content
             };
 
-            // 3. Gọi PUT Method để ghi đè xuống DB
             const response = await axios.put(`${API_BASE}/${selectedDoc.Id}`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -231,22 +250,19 @@ export default function LegalDataManager() {
         }
     };
 
-
-
     const handleViewDetail = async (doc) => {
         setSelectedDoc(doc);
-        setChunksLoading(true); // Tạm dùng loading cũ
-        setShowChunksModal(true); // Tạm dùng modal cũ
+        setChunksLoading(true);
+        setShowChunksModal(true);
 
         try {
             const token = localStorage.getItem('accessToken');
-            // Gọi API lấy Full Detail (giống bên Tra cứu) để có đủ Content, Agency, IssueDate...
             const response = await axios.get(`http://localhost:8000/api/documents/${doc.Id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             if (response.data.success) {
-                setSelectedDoc(response.data.data); // Ghi đè bằng dữ liệu đầy đủ
+                setSelectedDoc(response.data.data);
             }
         } catch (error) {
             console.error('Lỗi khi tải chi tiết văn bản:', error);
@@ -450,7 +466,7 @@ export default function LegalDataManager() {
                         </table>
                     </div>
 
-                    {/* Pagination Section - Nằm gọn trong khối Section */}
+                    {/* Pagination Section */}
                     {totalPages > 1 && (
                         <div className="mt-8 pt-6 border-t border-gray-200 flex items-center justify-between">
                             <div className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">
@@ -742,12 +758,12 @@ export default function LegalDataManager() {
                     </div>
                 )}
 
-                {/* hiển thị full */}
+                {/* View Detail Modal */}
                 {showChunksModal && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[300] p-4 md:p-10">
                         <div className="bg-[#f8f9fa] w-full max-w-5xl h-full rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-amber-200">
 
-                            {/* Toolbar trên cùng của Modal */}
+                            {/* Toolbar */}
                             <div className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center">
                                 <div className="flex items-center gap-4">
                                     <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
@@ -763,7 +779,7 @@ export default function LegalDataManager() {
                                 </button>
                             </div>
 
-                            {/* Vùng hiển thị tờ giấy A4  */}
+                            {/* Content Area */}
                             <div className="flex-1 overflow-y-auto p-10 flex justify-center custom-scrollbar">
                                 {chunksLoading ? (
                                     <div className="flex flex-col items-center justify-center h-full text-gray-400 uppercase text-[10px] tracking-[0.2em]">
@@ -775,29 +791,33 @@ export default function LegalDataManager() {
                                         className="w-full max-w-[800px] bg-white text-black shadow-2xl flex flex-col p-[1.5cm_1.2cm] border border-gray-100"
                                         style={{ fontFamily: "'Times New Roman', Times, serif" }}
                                     >
-                                        {/* Header chuẩn văn bản (Sử dụng dữ liệu từ selectedDoc) */}
-                                        <div className="flex justify-between items-start mb-8 text-[12px]">
-                                            <div className="text-center min-w-[150px]">
-                                                <p className="font-bold uppercase">{selectedDoc?.Agency || "CƠ QUAN BAN HÀNH"}</p>
-                                                <p className="font-bold">-------</p>
-                                                <p className="mt-1">Số: {selectedDoc?.DocumentNumber}</p>
+                                        {/* Header - Cấu trúc chuẩn A4 */}
+                                        <div className="flex justify-between items-start mb-8 text-[13px] border-b pb-6">
+                                            {/* Cột bên trái: Agency & Document Number */}
+                                            <div className="w-1/2 text-center pr-4">
+                                                <p className="font-bold uppercase">{selectedDoc?.Agency?.replace(/TTg|Hà Nội/gi, '').trim() || 'CƠ QUAN BAN HÀNH'}</p>
+                                                <p className="font-bold text-center">-------</p>
+                                                <p className="mt-1 text-[12px]">Số: {selectedDoc?.DocumentNumber || 'N/A'}</p>
                                             </div>
-                                            <div className="text-center">
+
+                                            {/* Cột bên phải: Quốc hiệu & Ngày tháng */}
+                                            <div className="w-1/2 text-center pl-4">
                                                 <p className="font-bold uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
                                                 <p className="font-bold">Độc lập - Tự do - Hạnh phúc</p>
                                                 <div className="w-24 h-[1px] bg-black mx-auto mt-1"></div>
+                                                <p className="text-[11px] mt-2">{selectedDoc?.IssueDateString?.replace(/^TTg/i, '').trim() || ''}</p>
                                             </div>
                                         </div>
 
-                                        {/* Tiêu đề văn bản */}
-                                        <div className="text-center my-8">
-                                            <h3 className="text-[18px] font-bold uppercase leading-tight">{selectedDoc?.Title}</h3>
+                                        {/* Tiêu đề */}
+                                        <div className="text-center my-4">
+                                            <h3 className="text-[16px] font-bold uppercase leading-tight">{selectedDoc?.Title}</h3>
                                         </div>
 
-                                        {/* Nội dung Markdown chuyên nghiệp */}
-                                        <div className="law-content-preview text-justify leading-relaxed text-[15px]">
+                                        {/* Nội dung chính */}
+                                        <div className="law-content-preview text-justify leading-relaxed text-[15px] space-y-2">
                                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                {selectedDoc?.Content}
+                                                {getCleanContent(selectedDoc?.Content || '').trim()}
                                             </ReactMarkdown>
                                         </div>
                                     </div>
@@ -850,19 +870,16 @@ export default function LegalDataManager() {
             </main>
 
             <style>{`
-    /* 1. Độ rộng tổng thể của thanh cuộn */
     .custom-scrollbar::-webkit-scrollbar { 
         width: 8px;              
         height: 8px; 
     }
 
-    /* 2. Phần nền bên dưới thanh cuộn (Track) */
     .custom-scrollbar::-webkit-scrollbar-track {
         background: rgba(0, 0, 0, 0.05); 
         border-radius: 10px;
     }
 
-    /* 3. Con trượt (Thumb) */
     .custom-scrollbar::-webkit-scrollbar-thumb { 
         background: #B8985D;     
         border-radius: 10px;
@@ -870,7 +887,6 @@ export default function LegalDataManager() {
         background-clip: content-box;
     }
 
-    /* 4. Hiệu ứng khi di chuột vào hoặc kéo trượt */
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { 
         background: #a6874d;     
     }

@@ -482,37 +482,47 @@ exports.analyzeVideo = async (req, res) => {
         const aiData = await geminiService.analyzeVideo(videoUrl);
         const videoTitle = aiData.title || videoUrl;
 
+
         // =============================
-        // 3. SAVE CACHE (VideoHistory)
+        // 3. SAVE CACHE (VideoHistory) -  V3.0 AUDIT ENGINE
         // =============================
         const saveRequest = pool.request();
 
+        // Chuẩn bị dữ liệu từ aiData (Kết quả từ Gemini V3)
+        const trustScore = aiData.trustScore ?? (aiData.scoring_details?.final_score ?? 0);
+        const summary = aiData.summary || "Không có tóm tắt.";
+        const legalBases = JSON.stringify(aiData.legal_map || aiData.legalBases || []);
+
         saveRequest.input('UserId', sql.Int, userId);
         saveRequest.input('Url', sql.NVarChar(500), videoUrl);
-        saveRequest.input('Title', sql.NVarChar(500), videoTitle);
+        // Ưu tiên Title từ AI (nếu có) hoặc dùng Title từ crawler/videoUrl
+        saveRequest.input('Title', sql.NVarChar(500), aiData.title || videoTitle || "Video Analysis");
+
         saveRequest.input('Transcript', sql.NVarChar(sql.MAX),
             aiData.raw_transcript || aiData.transcript || null);
-        saveRequest.input('Summary', sql.NVarChar(sql.MAX),
-            aiData.summary || aiData.analysis_report || null);
-        saveRequest.input('LegalBases', sql.NVarChar(sql.MAX),
-            JSON.stringify(aiData.legalBases || aiData.legal_map || []));
-        saveRequest.input('TrustScore', sql.Int,
-            aiData.trustScore || aiData.audit_metrics?.trust_score || 0);
-        saveRequest.input('AnalysisJson', sql.NVarChar(sql.MAX),
-            JSON.stringify(aiData));
-        saveRequest.input('AIModel', sql.NVarChar(50),
-            'Gemini-Dynamic-Fallback');
 
-        //  SMART CACHE FIELDS
+        saveRequest.input('Summary', sql.NVarChar(sql.MAX), summary);
+
+        saveRequest.input('LegalBases', sql.NVarChar(sql.MAX), legalBases);
+
+        // QUAN TRỌNG: trustScore có thể là -1 (Non-legal), toán tử ?? giúp giữ đúng giá trị này
+        saveRequest.input('TrustScore', sql.Int, trustScore);
+
+        // Lưu toàn bộ JSON để Frontend bóc tách: critical_analysis, confidence, scoring_details
+        saveRequest.input('AnalysisJson', sql.NVarChar(sql.MAX), JSON.stringify(aiData));
+
+        // Ghi rõ version để làm báo cáo KLTN cho chuyên nghiệp
+        saveRequest.input('AIModel', sql.NVarChar(50), 'Gemini-Dynamic-Fallback');
+
         saveRequest.input('LastAccessedAt', sql.DateTime, new Date());
         saveRequest.input('AccessCount', sql.Int, 1);
 
         await saveRequest.query(`
-            INSERT INTO VideoHistory 
-            (UserId, VideoUrl, Title, Transcript, Summary, LegalBases, TrustScore, AnalysisJson, AIModel, LastAccessedAt, AccessCount, CreatedAt)
-            VALUES 
-            (@UserId, @Url, @Title, @Transcript, @Summary, @LegalBases, @TrustScore, @AnalysisJson, @AIModel, @LastAccessedAt, @AccessCount, GETDATE())
-        `);
+    INSERT INTO VideoHistory 
+    (UserId, VideoUrl, Title, Transcript, Summary, LegalBases, TrustScore, AnalysisJson, AIModel, LastAccessedAt, AccessCount, CreatedAt)
+    VALUES 
+    (@UserId, @Url, @Title, @Transcript, @Summary, @LegalBases, @TrustScore, @AnalysisJson, @AIModel, @LastAccessedAt, @AccessCount, GETDATE())
+`);
 
         // =============================
         // 4. CLEANUP TOP N CACHE

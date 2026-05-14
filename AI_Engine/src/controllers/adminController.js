@@ -243,8 +243,8 @@ const getRecentHistory = async (req, res) => {
 const extremeDeepClean = (text) => {
     if (!text) return "";
     return text
-        // 1. Hàn các từ bị chẻ đôi (nhà nư\nớc -> nhà nước)
-        .replace(/([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])[\s]*[\n\r]+[\s]*([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])/gi, '$1$2')
+        // 1. Hàn các từ bị chẻ đôi với khoảng trắng (NAM\nĐộc lập -> NAM Độc lập)
+        .replace(/([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])[\s]*[\n\r]+[\s]*([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])/gi, '$1 $2')
 
         // 2. Nối các dòng thuộc cùng một câu (Dòng kết thúc không phải dấu chấm/hỏi/than)
         .replace(/([^.!?:\n])\n(?![A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝ])[\s]*/g, '$1 ')
@@ -522,7 +522,7 @@ const toggleSaveLaw = async (req, res) => {
     try {
         // Bốc đủ Metadata từ body để lưu vào DB
         const { documentId, documentTitle, documentNumber, issueYear } = req.body;
-        const userId = req.user.id; 
+        const userId = req.user.id;
 
         if (!documentId) return res.status(400).json({ success: false, message: 'Thiếu DocumentId' });
 

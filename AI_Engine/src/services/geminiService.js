@@ -604,92 +604,151 @@ Phân tích hồ sơ -> Trích xuất vai trò -> Xây dựng timeline -> Chia p
     }
 }
 // ==============================================================================
-// HÀM PHÂN TÍCH VIDEO (VIDEO ANALYSIS) - V2.0
+// HÀM PHÂN TÍCH VIDEO (VIDEO ANALYSIS) - V3.0 FINAL (DETAILED PROMPT)
 // ==============================================================================
-async function analyzeVideo(videoUrl) {
-    try {
-        // 1. Lấy transcript 
-        const standardUrl = normalizeYouTubeUrl(videoUrl);
-        const transcriptItems = await YoutubeTranscript.fetchTranscript(standardUrl);
 
+async function analyzeVideo(videoUrl) {
+    let transcript = '';
+
+    try {
+        // 1. CHUẨN HÓA URL & FETCH TRANSCRIPT
+        const standardUrl = normalizeYouTubeUrl(videoUrl);
+        if (!standardUrl) throw new Error('URL video không hợp lệ.');
+
+        let transcriptItems = await YoutubeTranscript.fetchTranscript(standardUrl);
         if (!transcriptItems || transcriptItems.length === 0) {
             throw new Error('Không tìm thấy phụ đề cho video này.');
         }
 
-        const transcript = transcriptItems.map(item => item.text).join(' ').trim();
-        if (!transcript) {
-            throw new Error('Phụ đề video không có nội dung hợp lệ.');
-        }
-
-        // Lấy thời gian thực tế tiêm vào Prompt để AI nhận thức năm hiện hành
+        transcript = transcriptItems.map(item => item.text).join(' ').trim();
         const currentYear = new Date().getFullYear();
 
-        // 2.  PROMPT 
+        // 2. RAG GROUNDING (TRUY XUẤT LUẬT THỰC TẾ)
+        let ragContext = '';
+        try {
+            const relatedDocs = await ragService.query(transcript.substring(0, 800));
+            if (relatedDocs && relatedDocs.length > 0) {
+                ragContext = relatedDocs.map(d => `[Văn bản: ${d.title}]: ${d.content}`).join('\n');
+            }
+        } catch (rErr) {
+            console.warn("⚠ RAG tạm thời không khả dụng, dùng kiến thức AI.");
+        }
+
+        // 3. MASTER PROMPT 
         const prompt = `
-SYSTEM PROMPT: LEGAL VIDEO AUDIT MASTER (VIETNAM)
-Bạn là LegAI - Hệ thống Kiểm toán Pháp lý Video cấp cao tại Việt Nam.
+Bạn là AI Pháp lý LegAI, đóng vai Hệ thống Kiểm toán Pháp lý Nội dung số theo pháp luật Việt Nam.
 
-⏳ NHẬN THỨC THỜI GIAN & BỐI CẢNH
-- Thời điểm hiện tại: Năm ${currentYear}
-- LƯU Ý ĐẶC BIỆT VỀ VIDEO NGẮN (SHORTS/TIKTOK): Đa số transcript là từ video ngắn mang tính chất "kiến thức nhanh". 
-- TUYỆT ĐỐI KHÔNG trừ điểm hoặc gắn mác "Lùa gà" chỉ vì video giải thích tóm tắt, dùng từ ngữ dân dã, hoặc không đọc chính xác từng Điều/Khoản luật. 
-- Miễn là BẢN CHẤT PHÁP LÝ ĐÚNG và không xúi giục vi phạm, video đó vẫn được đánh giá là "Đáng tin cậy" và xứng đáng đạt Trust Score cao (80-100).
+MỤC TIÊU:
+- Đánh giá độ tin cậy pháp lý của nội dung video.
+- Ưu tiên đánh giá theo BẢN CHẤT pháp lý.
+- KHÔNG đánh giá theo văn phong học thuật.
+- KHÔNG suy diễn luật nếu dữ liệu không đủ.
+- KHÔNG tự tạo Điều/Khoản luật.
 
- QUY TRÌNH SUY LUẬN (CHAIN-OF-THOUGHT BẮT BUỘC)
-Bạn PHẢI TUÂN THỦ CHÍNH XÁC THỨ TỰ SAU:
-1. Trích xuất nội dung: Vấn đề pháp lý cốt lõi video đang truyền tải là gì?
-2. Kiểm tra tính hợp lệ: Đánh giá nội dung truyền tải có đúng bản chất pháp luật hiện hành (năm ${currentYear}) không.
-3. Phát hiện Red Flags: CHỈ gắn Red Flag nếu video CỐ TÌNH tư vấn sai, hướng dẫn lách luật trái phép, lừa đảo, hoặc áp dụng luật cũ làm sai lệch hoàn toàn bản chất vụ việc.
-4. Đánh giá rủi ro và CHẤM ĐIỂM TRUST SCORE (0-100):
-   + Truyền tải đúng bản chất pháp lý (dù giải thích vắn tắt): 75 - 100.
-   + Có thiếu sót, mập mờ dễ gây hiểu lầm nhẹ: 50 - 70.
-   + Sai luật nghiêm trọng, xúi giục lách luật, lừa đảo: ≤ 40.
+────────────────────────────
+[1. THỜI ĐIỂM KIỂM TOÁN & dữ liệu đối chiếu]
+────────────────────────────
+- Năm hiện tại: ${currentYear}
+DỮ LIỆU RAG:
+"""
+${ragContext || 'Không có dữ liệu RAG hỗ trợ.'}
+"""
+QUY TẮC GROUNDING:
+- ƯU TIÊN TUYỆT ĐỐI dữ liệu RAG nếu có.
+- Nếu dữ liệu RAG không xác nhận:
+  + KHÔNG tự tạo Điều/Khoản.
+  + KHÔNG suy diễn số luật.
+  + status = "Cần đối chiếu".
+- Nếu transcript không nêu rõ căn cứ:
+  + article = "Chưa xác minh cụ thể".
 
-📦 ĐỊNH DẠNG OUTPUT (KHÓA CỨNG JSON)
-Bạn CHỈ ĐƯỢC TRẢ VỀ JSON HỢP LỆ DUY NHẤT theo cấu trúc dưới đây. 
-NGHIÊM CẤM bỏ sót bất kỳ key nào. NGHIÊM CẤM bọc JSON trong Markdown (\`\`\`json).
+────────────────────────────
+[2. CONTEXT GATE - PHÂN LOẠI NGỮ CẢNH]
+────────────────────────────
+Trước khi kiểm toán, PHẢI xác định video thuộc loại nào:
+1. LEGAL: Pháp luật, tư vấn, thủ tục...
+2. PARTIAL_LEGAL: Giải trí/Drama có chứa nhận định pháp lý.
+3. NON_LEGAL: Không liên quan pháp luật.
 
+QUY TẮC:
+- Nếu NON_LEGAL: Trả về trustScore = -1, summary = "Video không chứa nội dung pháp lý để kiểm toán.", legal_map = [], critical_analysis = [], action_plan = []
+- Nếu PARTIAL_LEGAL: Chỉ đánh giá phần pháp lý xuất hiện trong transcript.
+
+────────────────────────────
+[3. 4 TRỤ CỘT KIỂM TOÁN VIDEO]
+────────────────────────────
+(1) ACCURACY | (2) COMPLETENESS | (3) TEMPORAL VALIDITY | (4) NEUTRALITY
+
+────────────────────────────
+[4. (Quy tắc linh hoạt cho mạng xã hội & video ngắn]
+────────────────────────────
+- VIDEO SHORTS / TIKTOK: Không trừ điểm nếu nói ngắn gọn, chỉ trừ nếu SAI BẢN CHẤT.
+- Nếu transcript không rõ: severity phải giảm 1 cấp.
+
+────────────────────────────
+[5. Ma trận mức độ nghiêm trọng]
+────────────────────────────
+- DANGEROUS (-40) | HIGH RISK (-20) | ADVISORY (-10)
+
+────────────────────────────
+[6. Deterministic Scoring Engine-Hệ thống chấm điểm theo thuật toán]
+────────────────────────────
+Base = 100
+1. Raw = max(0, 100 - Tổng điểm trừ)
+2. CAP: ≥ 2 Dangerous -> 20 | 1 Dangerous -> 40 | ≥ 1 High Risk -> 60 | Khác -> 100
+3. Final = min(Raw, CAP)
+
+────────────────────────────
+[7. CONFIDENCE LAYER- đánh giá độ tin cậy của kết quả]
+────────────────────────────
+- HIGH | MEDIUM | LOW
+
+────────────────────────────
+[8. OUTPUT JSON BẮT BUỘC] (CHỈ trả về JSON, không markdown)
+────────────────────────────
 {
-  "summary": "### Tổng quan\\nTóm tắt nội dung video.\\n\\n### Đánh giá tín nhiệm\\n[Đáng tin cậy / Có sạn cần lưu ý / Rất rủi ro (Lùa gà)]\\n\\n### Cảnh báo (Red Flags)\\n**1.** [Không có / Ghi chi tiết cảnh báo nếu có]",
-  "trustScore": 85,
-  "legal_map": [
-    {
-      "law_name": "Tên luật / Nghị định liên quan đến chủ đề",
-      "article": "Điều khoản (nếu rõ, hoặc ghi 'Quy định chung')",
-      "status": "Đúng / Sai / Lỗi thời"
-    }
-  ],
-  "action_plan": [
-    {
-      "step": 1,
-      "action": "Khuyến nghị hành động cụ thể cho người xem"
-    }
-  ]
+  "summary": "string",
+  "context_type": "LEGAL | PARTIAL_LEGAL | NON_LEGAL",
+  "confidence": { "level": "string", "reason": "string" },
+  "scoring_details": {
+    "deductions": { "dangerous": 0, "high": 0, "advisory": 0 },
+    "raw_score": 0, "applied_cap": 0, "final_score": 0, "calculation_note": "string"
+  },
+  "trustScore": 0,
+  "legal_map": [{ "law_name": "string", "article": "string", "status": "string", "verification": "string" }],
+  "critical_analysis": [{ "claim": "string", "truth": "string", "gap": "string", "severity": "string" }],
+  "action_plan": [{ "step": 1, "action": "string" }]
 }
 
-NỘI DUNG PHỤ ĐỀ (TRANSCRIPT) CẦN KIỂM TOÁN:
+────────────────────────────
+[9. CONSISTENCY RULES- Quy tắc thống nhất và bảo toàn dữ liệu]
+────────────────────────────
+- trustScore PHẢI khớp với scoring_details.final_score.
+- Nếu context_type = NON_LEGAL: trustScore = -1.
+
+TRANSCRIPT CẦN KIỂM TOÁN:
 """${transcript}"""
 `;
-        // 3. GỌI HÀM SINH TEXT TỪ GEMINI
-        const responseText = await getActiveModel(prompt);
 
-        // 4. BÓC TÁCH JSON
-        const cleanedText = cleanAIJsonString(responseText);
-        let result = JSON.parse(cleanedText);
+        // 4. GỌI AI & XỬ LÝ
+        let responseText = await getActiveModel(prompt);
+        let result = JSON.parse(cleanAIJsonString(responseText));
 
-        // Đảm bảo tương thích với chuẩn Controller & DB
+        // 5. MAPPING DỮ LIỆU
         result.transcript = transcript;
         result.raw_transcript = transcript;
-        result.legalBases = result.legal_map; // Map sang đúng biến mà Controller đang dùng
+        result.legalBases = result.legal_map;
 
-        await logUsage('VIDEO_ANALYSIS');
+        // 6. GHI LOG
+        await logUsage(result.trustScore === -1 ? 'VIDEO_ANALYSIS_NON_LEGAL' : 'VIDEO_ANALYSIS').catch(console.error);
+
         return result;
+
     } catch (error) {
-        console.error(" Lỗi phân tích video:", error.message || error);
-        throw new Error(error.message || "Không thể phân tích video lúc này.");
+        console.error(" Lỗi Video Analysis:", error.message);
+        throw new Error(error.message || "Không thể phân tích video.");
     }
 }
-
 // ==============================================================================
 //  HÀM CHAT 
 // ==============================================================================

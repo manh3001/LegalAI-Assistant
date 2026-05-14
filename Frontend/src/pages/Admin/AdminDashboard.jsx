@@ -20,7 +20,8 @@ import {
   FileText,
   ClipboardEdit,
   Scale,
-  MessageSquare
+  MessageSquare,
+  Search
 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
 const backendBase = 'http://localhost:8000/api';
@@ -436,74 +437,93 @@ export default function AdminDashboard() {
           </div>
 
           {/* BÊN PHẢI (4 CỘT): LỊCH SỬ PHÂN TÍCH AI */}
-          <div className={`${glassClass} col-span-12 lg:col-span-4 rounded-[2.5rem] p-6 flex flex-col h-[450px] lg:h-auto`}>
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-900">Lịch sử Phân tích AI</h3>
-              <Activity size={16} className="text-amber-600" />
+          <div className={`${glassClass} col-span-12 lg:col-span-4 rounded-[2.5rem] p-6 flex flex-col`}>
+            {/* Sticky Header */}
+            <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md -mx-6 -mt-6 px-6 py-4 mb-6 border-b border-gray-100">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-black uppercase tracking-widest text-gray-900">Lịch sử Phân tích AI</h3>
+                <Activity size={16} className="text-amber-600" />
+              </div>
             </div>
 
-
-            <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar">
+            {/* Vùng chứa danh sách với chiều cao cố định */}
+            <div className="h-[580px] overflow-y-auto custom-scrollbar">
               {historyLoading ? (
                 <div className="text-center py-10 text-gray-500">Đang tải lịch sử phân tích...</div>
               ) : historyItems.length === 0 ? (
-                <div className="text-center py-10 text-gray-500">Chưa có hoạt động phân tích AI</div>
+                /* Empty State */
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <Search size={48} className="text-gray-100 mb-4" />
+                  <p className="text-[11px] italic text-gray-400">Hệ thống chưa ghi nhận hoạt động nào</p>
+                </div>
               ) : (
                 <div className="space-y-4">
-                  {historyItems.map((item) => (
-                    <div
-                      key={item.Id}
-                      className="group rounded-[2rem] bg-gray-50/50 border border-gray-100 p-4 hover:bg-white hover:border-amber-200 hover:shadow-xl hover:shadow-amber-500/5 transition-all duration-300"
-                    >
-                      {/* Hàng 1: Thời gian & Trạng thái */}
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400">
-                            {new Date(item.EventTime).toLocaleString('vi-VN', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              day: '2-digit',
-                              month: '2-digit'
-                            })}
-                          </span>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${item.Outcome === 'Success' || item.Outcome === 'Completed' || item.Outcome === 'Thành công'
-                          ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                          }`}>
-                          {item.Outcome === 'Success' || item.Outcome === 'Completed' ? 'Thành công' : item.Outcome}
-                        </span>
-                      </div>
+                  {historyItems.map((item, index) => {
+                    const prevItem = historyItems[index - 1];
+                    const isSameUser = prevItem && prevItem.FullName === item.FullName;
+                    const getIcon = (recordType) => {
+                      switch (recordType) {
+                        case 'CONTRACT':
+                          return { icon: Scale, bg: 'bg-amber-50', text: 'text-amber-600' };
+                        case 'CHATBOT':
+                          return { icon: MessageSquare, bg: 'bg-purple-50', text: 'text-purple-600' };
+                        case 'PLANNING':
+                          return { icon: Zap, bg: 'bg-amber-50', text: 'text-amber-600' };
+                        case 'FORM_GEN':
+                          return { icon: Database, bg: 'bg-cyan-50', text: 'text-cyan-600' };
+                        case 'VIDEO_ANALYSIS':
+                          return { icon: Play, bg: 'bg-rose-50', text: 'text-rose-600' };
+                        default:
+                          return { icon: Activity, bg: 'bg-gray-50', text: 'text-gray-600' };
+                      }
+                    };
+                    const { icon: IconComponent, bg, text } = getIcon(item.RecordType);
+                    const isSuccess = item.Outcome === 'Success' || item.Outcome === 'Completed' || item.Outcome === 'Thành công';
 
-                      {/* Hàng 2: Nội dung chính với Icon */}
-                      <div className="flex items-start gap-4">
-                        {/* Khung Icon màu sắc theo RecordType */}
-                        <div className={`p-2.5 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-300 ${item.RecordType === 'CONTRACT' ? 'bg-blue-50 text-blue-600' :
-                            item.RecordType === 'CHATBOT' ? 'bg-purple-50 text-purple-600' :
-                              item.RecordType === 'PLANNING' ? 'bg-amber-50 text-amber-600' :
-                                item.RecordType === 'FORM_GEN' ? 'bg-cyan-50 text-cyan-600' :
-                                  item.RecordType === 'VIDEO_ANALYSIS' ? 'bg-rose-50 text-rose-600' : 
-                                    'bg-gray-50 text-gray-600' // Màu fallback cuối cùng
-                          }`}>
-                          {item.RecordType === 'CONTRACT' && <Scale size={18} />}
-                          {item.RecordType === 'CHATBOT' && <MessageSquare size={18} />}
-                          {item.RecordType === 'PLANNING' && <Zap size={18} />}
-                          {item.RecordType === 'FORM_GEN' && <Database size={18} />}
-                          {item.RecordType === 'VIDEO_ANALYSIS' && <Play size={18} />}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-900 leading-tight">
-                            <span className="font-black text-gray-900">{item.FullName || 'Người dùng'}</span>
-                            <span className="text-gray-500 font-medium"> đã dùng </span>
-                            <span className="font-black text-amber-600 underline underline-offset-4 decoration-amber-200">
-                              {item.DisplayName}
+                    return (
+                      <div
+                        key={item.Id}
+                        className={`group rounded-[2rem] bg-gray-50/50 border border-gray-100 p-4 hover:bg-white/80 hover:backdrop-blur-sm hover:border-amber-200/40 hover:shadow-xl hover:shadow-amber-500/5 hover:translate-x-1 transition-all duration-300 ${isSameUser ? 'border-l-2 border-gray-50 pl-6' : ''}`}
+                      >
+                        {/* Hàng 1: Thời gian & Status Dot */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400">
+                              {new Date(item.EventTime).toLocaleString('vi-VN', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                day: '2-digit',
+                                month: '2-digit'
+                              })}
                             </span>
-                          </p>
+                          </div>
+                          <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`} />
+                        </div>
+
+                        {/* Hàng 2: Nội dung chính với Icon */}
+                        <div className="flex items-start gap-4">
+                          {/* Soft Glow Badge */}
+                          <div className={`p-2.5 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-300 ${bg} ${text}`}>
+                            <IconComponent size={18} />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            {!isSameUser && (
+                              <p className="text-sm font-bold text-gray-900 leading-tight mb-1">
+                                {item.FullName || 'Người dùng'}
+                              </p>
+                            )}
+                            <p className="text-sm text-gray-900 leading-tight">
+                              <span className="text-gray-500 font-medium">đã dùng </span>
+                              <span className="font-black text-amber-600 underline underline-offset-4 decoration-amber-200">
+                                {item.DisplayName}
+                              </span>
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
