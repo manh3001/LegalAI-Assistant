@@ -26,7 +26,32 @@ const getConfidenceTone = (level) => {
             return 'border-zinc-200 bg-zinc-50 text-zinc-600';
     }
 };
+// ==========================================================
+// TỪ ĐIỂN MAP DỮ LIỆU ENUM SANG TIẾNG VIỆT
+// ==========================================================
+const VIETSUB_CONTEXT = {
+    'LEGAL': 'Pháp Lý Chuẩn',
+    'PARTIAL_LEGAL': 'Có Yếu Tố Pháp Lý',
+    'NON_LEGAL': 'Giải Trí / Đời Thường'
+};
 
+const VIETSUB_MODE = {
+    'VERIFIED': 'Đã Xác Thực (RAG)',
+    'PARTIAL': 'Xác Thực Một Phần',
+    'DEGRADED': 'Thiếu Data'
+};
+
+const VIETSUB_CONFIDENCE = {
+    'HIGH': 'Cao (Đủ Data)',
+    'MEDIUM': 'Trung Bình (Thiếu Data)',
+    'LOW': 'Thấp (Không Có Data)'
+};
+
+const VIETSUB_SEVERITY = {
+    'DANGEROUS': 'Nguy Hiểm',
+    'HIGH_RISK': 'Rủi Ro Cao',
+    'ADVISORY': 'Cần Lưu Ý'
+};
 const getSeverityTone = (severity) => {
     switch (severity) {
         case 'Dangerous':
@@ -37,7 +62,29 @@ const getSeverityTone = (severity) => {
             return 'bg-amber-50 text-amber-700 border border-amber-200';
     }
 };
+// Hàm tự động làm nổi bật text trong ngoặc kép
+const highlightQuotes = (text) => {
+    if (!text) return null;
+    // Tách chuỗi dựa trên dấu ngoặc kép (bao gồm cả ngoặc kép thẳng "" và ngoặc kép cong “”)
+    const parts = text.split(/(["“”][^"“”]+["“”])/g);
 
+    return parts.map((part, index) => {
+        // Kiểm tra xem đoạn cắt ra có phải là đoạn nằm trong ngoặc kép không
+        if (/^["“”].*["“”]$/.test(part)) {
+            return (
+                <span
+                    key={index}
+                    // Tailwind : In đậm (font-black), size to (text-[13px]), màu chữ tối/nổi bật, bỏ in nghiêng
+                    className="font-black text-[13px] text-zinc-950 not-italic leading-relaxed mx-0.5"
+                >
+                    {part}
+                </span>
+            );
+        }
+        // Nếu là text bình thường thì trả về nguyên bản
+        return part;
+    });
+};
 export default function VideoLegalAnalysis() {
     const [videoUrl, setVideoUrl] = usePersistedState('videoUrl', '');
     const [embedUrl, setEmbedUrl] = usePersistedState('embedUrl', '');
@@ -108,13 +155,14 @@ export default function VideoLegalAnalysis() {
                 setVideoData({
                     transcript: result.transcript || result.Transcript,
                     summary: result.summary || result.Summary,
-                    legalMap: result.legal_map || result.legalBases || (typeof result.LegalBases === 'string' ? JSON.parse(result.LegalBases) : []),
+                    legalMap: result.legalBases || result.legal_map || [],
                     trustScore: result.trustScore ?? result.TrustScore ?? 0,
                     contextType: result.context_type,
                     confidence: result.confidence,
                     scoringDetails: result.scoring_details,
                     criticalAnalysis: result.critical_analysis || [],
-                    actionPlan: result.action_plan || []
+                    actionPlan: result.action_plan || [],
+                    grounding: result.grounding
                 });
 
                 setEmbedUrl(parseYoutubeEmbedUrl(videoUrl));
@@ -204,7 +252,7 @@ export default function VideoLegalAnalysis() {
                 <header className="mb-8 rounded-3xl border-2 border-zinc-300 bg-white p-6">
                     <div className="flex flex-col gap-4">
                         <div className="flex items-center justify-between gap-4">
-                            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-zinc-400">Video Legal Audit</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-zinc-400">Video Legal</p>
 
                             {videoData && (
                                 <div className="flex shrink-0 items-center gap-2">
@@ -302,7 +350,7 @@ export default function VideoLegalAnalysis() {
                                         </button>
                                     </div>
                                     <div className="max-h-72 overflow-y-auto rounded-xl border border-zinc-100 bg-zinc-50 p-4 text-sm italic leading-relaxed text-zinc-600 custom-scrollbar">
-                                        "{videoData.transcript}"
+                                        {highlightQuotes(videoData.transcript)}
                                     </div>
                                 </section>
                             )}
@@ -324,10 +372,21 @@ export default function VideoLegalAnalysis() {
                                 {videoData && (
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="rounded-full border border-zinc-100 bg-zinc-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-zinc-600">
-                                            Loại nội dung: {videoData.contextType || 'N/A'}
+                                            Loại nội dung: {VIETSUB_CONTEXT[videoData.contextType] || videoData.contextType || 'N/A'}
                                         </span>
+
+                                        {/* Badge hiển thị trạng thái RAG */}
+                                        {videoData.grounding && (
+                                            <span className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${videoData.grounding.grounding_mode === 'DEGRADED'
+                                                ? 'border-red-200 bg-red-50 text-red-700'
+                                                : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                }`}>
+                                                Chế độ: {VIETSUB_MODE[videoData.grounding.grounding_mode] || videoData.grounding.grounding_mode}
+                                            </span>
+                                        )}
+
                                         <span className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${getConfidenceTone(confidenceLevel)}`}>
-                                            Độ tin cậy: {confidenceLevel}
+                                            Mức Độ AI Xác Thực: {VIETSUB_CONFIDENCE[confidenceLevel] || confidenceLevel}
                                         </span>
                                     </div>
                                 )}
@@ -413,7 +472,7 @@ export default function VideoLegalAnalysis() {
                                             <div className="mb-4 flex items-center gap-2">
                                                 <LightBulbIcon className="h-5 w-5 text-amber-600" />
                                                 <h3 className="text-sm font-black uppercase tracking-[0.16em] text-zinc-950">
-                                                    Lộ trình xử lý (Action Plan)
+                                                    Lộ trình xử lý
                                                 </h3>
                                             </div>
                                             <div className="grid gap-4 md:grid-cols-2">
@@ -436,19 +495,19 @@ export default function VideoLegalAnalysis() {
                                             <div className="mb-4 flex items-center gap-2">
                                                 <ShieldCheckIcon className="h-5 w-5 text-red-600" />
                                                 <h3 className="text-sm font-black uppercase tracking-[0.16em] text-zinc-950">
-                                                    Phân tích sai lệch (Critical Audit)
+                                                    Phân tích sai lệch
                                                 </h3>
                                             </div>
                                             <div className="grid gap-4 lg:grid-cols-2">
                                                 {criticalAnalysis.map((item, i) => (
                                                     <article key={`${item.claim || 'critical'}-${i}`} className="rounded-2xl border-2 border-zinc-200 bg-white p-6">
                                                         <div className="mb-4 flex items-center justify-between gap-3">
-                                                            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">Issue {i + 1}</span>
+                                                            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">Vấn Đề {i + 1}</span>
                                                             <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${getSeverityTone(item.severity)}`}>
-                                                                {item.severity || 'Review'}
+                                                                {VIETSUB_SEVERITY[item.severity] || item.severity}
                                                             </span>
                                                         </div>
-                                                        <p className="mb-3 text-xs italic leading-relaxed text-zinc-500">"{item.claim}"</p>
+                                                        <p className="mb-3 text-sm italic leading-relaxed text-zinc-500">{highlightQuotes(item.claim)}</p>
                                                         <p className="text-sm font-bold leading-relaxed text-zinc-900">Sự thật: {item.truth}</p>
                                                         <p className="mt-2 text-xs font-semibold leading-relaxed text-red-600">Lỗ hổng: {item.gap}</p>
                                                     </article>

@@ -199,19 +199,23 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
         // Đảm bảo dữ liệu đầu ra là chuỗi String
         if (typeof content !== 'string') content = String(content);
 
-        // BƯỚC 2: TỰ ĐỘNG ÉP ĐỊNH DẠNG TIÊU ĐỀ (Xử lý cả text thô và icon cũ)
-        const titles = [
-            { key: 'Kết luận', icon: '⚖️' },
-            { key: 'Phân tích', icon: '🔍' },
-            { key: 'Cơ sở pháp lý', icon: '📚' },
-            { key: 'Lời khuyên', icon: '💡' }
-        ];
+        // BƯỚC 2: TỰ ĐỘNG ÉP ĐỊNH DẠNG TIÊU ĐỀ (ĐÃ FIX LỖI REGEX)
+    const titles = [
+        { key: 'Kết luận' },
+        { key: 'Phân tích' },
+        { key: 'Cơ sở pháp lý' },
+        { key: 'Lời khuyên' }
+    ];
 
-        titles.forEach(item => {
-            // Regex này quét sạch icon cũ (nếu có) và ép về định dạng **Tiêu đề:** xuống dòng
-            const regex = new RegExp(`^(\\s*|[⚖️🔍📚💡]\\s*|\\*\\*)*${item.key}(:?\\s*|:?\\*\\*\\s*)?`, 'gmi');
-            content = content.replace(regex, `**${item.key}:**\n`);
-        });
+    titles.forEach(item => {
+       
+        // Xóa sạch các icon cũ, dấu sao cũ, dấu hai chấm cũ
+        const regex = new RegExp(`([\\s\\*\\-⚖️🔍📚💡]*)${item.key}(:?\\s*|:?\\*\\*\\s*)?`, 'gi');
+        
+       
+        // Bơm 2 dấu \n ở sau (để đẩy nội dung của nó xuống dòng)
+        content = content.replace(regex, `\n\n**${item.key}:**\n\n`);
+    });
         // BƯỚC 3: XỬ LÝ MIỄN TRỪ TRÁCH NHIỆM (Disclaimer)
         content = content.replace(/Nội dung do LegAI cung cấp.*/gi, (match) => `\n\n---\n*${match}*`);
 
