@@ -367,9 +367,17 @@ exports.generatePlanning = async (req, res) => {
             return res.status(400).json({ error: "Vui lòng nhập nội dung hoặc upload file để lập kế hoạch!" });
         }
 
-
+        let relatedDocs = [];
+        try {
+            // Lấy nội dung prompt người dùng gõ (hoặc chuỗi text ngắn đầu file) để truy vấn luật hỗ trợ từ Pinecone
+            const searchQuery = userPrompt || combinedText.substring(0, 300);
+            relatedDocs = await ragService.query(searchQuery.trim());
+            console.log(` [PLANNING RAG] Đã tìm thấy ${relatedDocs.length} tài liệu luật bổ trợ từ Pinecone.`);
+        } catch (ragErr) {
+            console.error(' Lỗi hệ thống RAG luồng lập kế hoạch:', ragErr.message);
+        }
         // Truyền finalInstructions vào Service
-        const planningResult = await geminiService.generatePlan(combinedText);
+        const planningResult = await geminiService.generatePlan(combinedText,relatedDocs);
 
         // . LƯU VÀO SQL SERVER 
         try {

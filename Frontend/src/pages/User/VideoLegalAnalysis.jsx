@@ -507,7 +507,10 @@ export default function VideoLegalAnalysis() {
                                                                 {VIETSUB_SEVERITY[item.severity] || item.severity}
                                                             </span>
                                                         </div>
-                                                        <p className="mb-3 text-sm italic leading-relaxed text-zinc-500">{highlightQuotes(item.claim)}</p>
+
+                                                        <p className="mb-3 text-[13px] font-black text-zinc-950 not-italic leading-relaxed">
+                                                            "{item.claim}"
+                                                        </p>
                                                         <p className="text-sm font-bold leading-relaxed text-zinc-900">Sự thật: {item.truth}</p>
                                                         <p className="mt-2 text-xs font-semibold leading-relaxed text-red-600">Lỗ hổng: {item.gap}</p>
                                                     </article>

@@ -13,7 +13,7 @@ let embedModel;
 const initCloudServices = () => {
     if (!genAI) {
         genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        // BẮT BUỘC: Đồng bộ với model đã upload (3072 dims)
+        // BẮT BUỘC: Đồng bộ với model đã upload (768dims)
         embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
     }
     if (!pc) {
@@ -41,7 +41,7 @@ const query = async (queryText, k = 5) => {
         });
 
         if (searchResults.matches && searchResults.matches.length > 0) {
-            console.log(`✅ Đã lấy được ${searchResults.matches.length} tài liệu từ Pinecone.`);
+            console.log(` Đã lấy được ${searchResults.matches.length} tài liệu từ Pinecone.`);
 
             return searchResults.matches.map(match => ({
                 id: match.id,
@@ -54,7 +54,7 @@ const query = async (queryText, k = 5) => {
 
         return [];
     } catch (error) {
-        console.error("❌ Lỗi Pinecone RAG:", error.message);
+        console.error(" Lỗi Pinecone RAG:", error.message);
         return [];
     }
 };
