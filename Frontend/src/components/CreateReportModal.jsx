@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import Swal from 'sweetalert2';
 
 export default function CreateReportModal({ isOpen, onClose }) {
     const [reportName, setReportName] = useState("");
@@ -7,12 +8,12 @@ export default function CreateReportModal({ isOpen, onClose }) {
     const handleSave = (e) => {
         e.preventDefault();
         if (!reportName.trim()) {
-            alert("Vui lòng nhập tên báo cáo!");
+            Swal.fire({ icon: 'warning', title: 'Vui lòng nhập tên báo cáo!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
 
         console.log("Đang tạo báo cáo:", reportName);
-        alert(`Đã tạo báo cáo "${reportName}" thành công!`);
+        Swal.fire({ icon: 'success', title: `Đã tạo báo cáo "${reportName}" thành công!`, toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         setReportName("");
         onClose();
     };

@@ -11,6 +11,7 @@ import {
   ArrowPathIcon,
   ClipboardDocumentIcon
 } from "@heroicons/react/24/outline";
+import Swal from 'sweetalert2';
 
 // Đồng bộ bộ màu Tones với VideoLegalAnalysis
 const getConfidenceTone = (level) => {
@@ -93,7 +94,7 @@ export default function VideoAnalysisDetailView({ record }) {
   // Hàm Copy
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text || '');
-    alert('Đã copy Transcript!');
+    Swal.fire({ icon: 'success', title: 'Đã copy Transcript!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, iconColor: '#B8985D' });
   };
   // 3. Hàm format text chuẩn Impeccable
   const formatSummary = (text) => {

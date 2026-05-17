@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { CloudArrowUpIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import Swal from 'sweetalert2';
 
 export default function CreateRecordModal({ isOpen, onClose, onUploadSuccess }) {
     const [file, setFile] = useState(null);
@@ -30,7 +31,7 @@ export default function CreateRecordModal({ isOpen, onClose, onUploadSuccess }) 
 
     const handleUpload = () => {
         if (!file || !title) {
-            alert("Vui lòng chọn file và nhập tiêu đề hồ sơ!");
+            Swal.fire({ icon: 'warning', title: 'Vui lòng chọn file và nhập tiêu đề hồ sơ!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
 

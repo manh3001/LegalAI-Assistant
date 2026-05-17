@@ -14,6 +14,7 @@ import aiClient from "../../api/aiClient";
 import axios from "axios";
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import usePersistedState from '../../hooks/usePersistedState';
+import Swal from 'sweetalert2';
 
 
 export default function ContractAnalysis() {
@@ -38,7 +39,7 @@ export default function ContractAnalysis() {
         if (!selectedFile) return;
         const ext = (selectedFile.name.split('.').pop() || '').toLowerCase();
         if (!['pdf', 'txt', 'doc', 'docx'].includes(ext)) {
-            alert("Vui lòng chọn file văn bản (.pdf, .txt, .doc)");
+            Swal.fire({ icon: 'warning', title: 'Vui lòng chọn file văn bản (.pdf, .txt, .doc)', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
         setFile(selectedFile);
@@ -82,7 +83,7 @@ export default function ContractAnalysis() {
         } catch (error) {
             if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
                 console.error("Lỗi:", error);
-                alert("Có lỗi xảy ra. Hãy thử lại!");
+                Swal.fire({ icon: 'error', title: 'Có lỗi xảy ra. Hãy thử lại!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } finally {
             if (intervalRef.current) clearInterval(intervalRef.current);
@@ -117,11 +118,11 @@ export default function ContractAnalysis() {
 
             if (res.data.success) {
                 setIsSaved(true);
-                alert(" Đã lưu hồ sơ vào Kho lưu trữ số thành công!");
+                Swal.fire({ icon: 'success', title: 'Đã lưu hồ sơ vào Kho lưu trữ số thành công!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } catch (saveErr) {
             console.error("Lỗi lưu SQL:", saveErr);
-            alert(" Lỗi khi lưu hồ sơ vào Database.");
+            Swal.fire({ icon: 'error', title: 'Lỗi khi lưu hồ sơ vào Database.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         } finally {
             setIsSaving(false);
         }

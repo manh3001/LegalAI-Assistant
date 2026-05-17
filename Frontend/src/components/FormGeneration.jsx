@@ -9,7 +9,9 @@ import {
     DocumentMagnifyingGlassIcon,
     ArrowPathIcon,
     CheckBadgeIcon
+    , EllipsisVerticalIcon, DocumentTextIcon
 } from '@heroicons/react/24/outline';
+import Swal from 'sweetalert2';
 import aiClient from "../api/aiClient";
 
 
@@ -43,6 +45,8 @@ export default function FormGeneration() {
     const [isSaved, setIsSaved] = useState(false);
 
     const textAreaRef = useRef(null);
+    const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+    const actionMenuRef = useRef(null);
 
 
     // 2. STATE QUẢN LÝ BIỂU MẪU
@@ -77,6 +81,17 @@ export default function FormGeneration() {
             });
         }, 50);
     }, [formData.sections]);
+
+    // Close action menu when clicking outside
+    useEffect(() => {
+        const handleOutside = (e) => {
+            if (isActionMenuOpen && actionMenuRef.current && !actionMenuRef.current.contains(e.target)) {
+                setIsActionMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, [isActionMenuOpen]);
 
 
 
@@ -172,7 +187,7 @@ export default function FormGeneration() {
     // 4. HÀM LƯU VÀO DATABASE SQL SERVER
     const handleSaveToHistory = async () => {
         if (currentTemplate === 'none') {
-            alert("Vui lòng nhập thông tin để AI tạo biểu mẫu trước khi lưu.");
+            Swal.fire({ icon: 'warning', title: 'Vui lòng nhập thông tin để AI tạo biểu mẫu trước khi lưu.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
         setIsSaving(true);
@@ -202,29 +217,102 @@ export default function FormGeneration() {
 
             if (res.data.success) {
                 setIsSaved(true);
-                alert(" Đã lưu biểu mẫu vào Kho lưu trữ số thành công!");
+                Swal.fire({ icon: 'success', title: 'Đã lưu biểu mẫu vào Kho lưu trữ số thành công!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } catch (err) {
             console.error("Lỗi lưu Form:", err);
-            alert(" Lỗi: " + (err.response?.status === 401 ? "Hết hạn phiên làm việc!" : "Không thể lưu."));
+            Swal.fire({ icon: 'error', title: 'Lỗi: ' + (err.response?.status === 401 ? 'Hết hạn phiên làm việc!' : 'Không thể lưu.'), toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, iconColor: '#B8985D' });
         } finally {
             setIsSaving(false);
         }
     };
 
     const handleNewChat = () => {
-        if (window.confirm("Bản thảo hiện tại sẽ bị xóa (nếu chưa Lưu hồ sơ). Bạn có chắc muốn tạo mới?")) {
-            setMessages([{ id: 1, sender: 'ai', text: 'Chào bạn! Tôi là trợ lý LegAI. Bạn cần tạo hợp đồng gì?' }]);
-            setCurrentTemplate('none');
-            setFormData({
-                ten_hop_dong: 'HỢP ĐỒNG DỊCH VỤ', can_cu_luat: [],
-                benA_role: 'BÊN A', benB_role: 'BÊN B',
-                benA_name: '', benA_id: '', benA_address: '', benA_phone: '', benA_rep: '',
-                benB_name: '', benB_id: '', benB_address: '', benB_phone: '', benB_rep: '',
-                sections: []
-            });
-            setInputValue('');
-            setIsSaved(false);
+        Swal.fire({
+            title: 'Bản thảo hiện tại sẽ bị xóa',
+            text: 'Bản thảo hiện tại sẽ bị xóa (nếu chưa Lưu hồ sơ). Bạn có chắc muốn tạo mới?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Xác nhận',
+            cancelButtonText: 'Hủy',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                setMessages([{ id: 1, sender: 'ai', text: 'Chào bạn! Tôi là trợ lý LegAI. Bạn cần tạo hợp đồng gì?' }]);
+                setCurrentTemplate('none');
+                setFormData({
+                    ten_hop_dong: 'HỢP ĐỒNG DỊCH VỤ', can_cu_luat: [],
+                    benA_role: 'BÊN A', benB_role: 'BÊN B',
+                    benA_name: '', benA_id: '', benA_address: '', benA_phone: '', benA_rep: '',
+                    benB_name: '', benB_id: '', benB_address: '', benB_phone: '', benB_rep: '',
+                    sections: []
+                });
+                setInputValue('');
+                setIsSaved(false);
+            }
+        });
+    };
+
+    const handleDownloadWord = () => {
+        try {
+            const title = formData.ten_hop_dong || 'HỢP ĐỒNG';
+            const canCu = (formData.can_cu_luat || []).map(l => `<p>- ${l}</p>`).join('');
+            const sectionsHtml = (formData.sections || []).map(s => `
+                <h3 style="font-weight:bold">${s.title || ''}</h3>
+                <p>${(s.content || '').replace(/\n/g, '<br>')}</p>
+            `).join('\n');
+
+            const html = `<!doctype html>
+<html>
+<head><meta charset='utf-8'><title>${title}</title></head>
+<body style="font-family: 'Times New Roman', Times, serif;">
+  <div style="text-align:center; font-weight:bold;">Cộng hòa Xã hội Chủ nghĩa Việt Nam</div>
+  <div style="text-align:center; font-weight:bold;">Độc lập - Tự do - Hạnh phúc</div>
+  <hr/>
+  <h1 style="text-align:center;">${title}</h1>
+  <div>${canCu}</div>
+  <h2>Thông tin Bên A</h2>
+  <p>Tên: ${formData.benA_name || ''}</p>
+  <p>MST/CCCD: ${formData.benA_id || ''}</p>
+  <p>Địa chỉ: ${formData.benA_address || ''}</p>
+  <p>Điện thoại: ${formData.benA_phone || ''}</p>
+  <p>Đại diện: ${formData.benA_rep || ''}</p>
+  <h2>Thông tin Bên B</h2>
+  <p>Tên: ${formData.benB_name || ''}</p>
+  <p>MST/CCCD: ${formData.benB_id || ''}</p>
+  <p>Địa chỉ: ${formData.benB_address || ''}</p>
+  <p>Điện thoại: ${formData.benB_phone || ''}</p>
+  <p>Đại diện: ${formData.benB_rep || ''}</p>
+  <div>${sectionsHtml}</div>
+  <br/>
+  <table width="100%">
+    <tr>
+      <td style="text-align:center; font-weight:bold;">BÊN A<br/>(Ký và ghi rõ họ tên)</td>
+      <td style="text-align:center; font-weight:bold;">BÊN B<br/>(Ký và ghi rõ họ tên)</td>
+    </tr>
+    <tr><td style="height:120px"></td><td></td></tr>
+    <tr>
+      <td style="text-align:center;">${formData.benA_rep || formData.benA_name || '........................'}</td>
+      <td style="text-align:center;">${formData.benB_rep || formData.benB_name || '........................'}</td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+            const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'HopDong_LegAI.doc';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            setIsActionMenuOpen(false);
+            Swal.fire({ icon: 'success', title: 'Đã tải file Word thành công!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
+        } catch (err) {
+            console.error('Error exporting Word:', err);
+            Swal.fire({ icon: 'error', title: 'Không thể xuất file Word', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         }
     };
 
@@ -304,19 +392,28 @@ export default function FormGeneration() {
                         </span>
                     </div>
 
-                    <div className="flex gap-3">
-                        {currentTemplate !== 'none' && (
-                            <button onClick={handleSaveToHistory} disabled={isSaving || isSaved} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${isSaved
-                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                                : 'bg-[#1A2530] hover:bg-[#B8985D] text-white border border-transparent'
-                                }`}>
-                                {isSaving ? <ArrowPathIcon className="w-4 h-4 animate-spin stroke-2" /> : <CheckBadgeIcon className="w-4 h-4 stroke-2" />}
-                                {isSaving ? "ĐANG LƯU..." : isSaved ? "ĐÃ LƯU" : "LƯU HỒ SƠ"}
-                            </button>
-                        )}
-                        <button onClick={handlePrint} disabled={currentTemplate === 'none'} className="flex items-center gap-2 px-5 py-2 bg-white border border-zinc-300 hover:border-[#B8985D] hover:text-[#B8985D] rounded-xl text-xs font-bold disabled:opacity-50 transition-colors shadow-sm">
-                            <PrinterIcon className="w-4 h-4 stroke-2" /> In / PDF
+                    <div ref={actionMenuRef} className="relative">
+                        <button onClick={() => setIsActionMenuOpen(v => !v)} className="p-2 rounded-lg hover:bg-zinc-100">
+                            <EllipsisVerticalIcon className="w-6 h-6 text-zinc-600" />
                         </button>
+                        {isActionMenuOpen && (
+                            <ul className="absolute right-6 mt-12 w-56 bg-white border border-zinc-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                                {currentTemplate !== 'none' && (
+                                    <li onClick={() => { handleSaveToHistory(); setIsActionMenuOpen(false); }} className="flex items-center gap-2 px-4 py-3 hover:bg-zinc-50 cursor-pointer">
+                                        <CheckBadgeIcon className="w-5 h-5" />
+                                        <span className="text-sm font-medium">Lưu Biểu Mẫu</span>
+                                    </li>
+                                )}
+                                <li onClick={() => { handleDownloadWord(); }} className="flex items-center gap-2 px-4 py-3 hover:bg-zinc-50 cursor-pointer">
+                                    <DocumentTextIcon className="w-5 h-5" />
+                                    <span className="text-sm font-medium">Tải file Word (.doc)</span>
+                                </li>
+                                <li onClick={() => { handlePrint(); setIsActionMenuOpen(false); }} className="flex items-center gap-2 px-4 py-3 hover:bg-zinc-50 cursor-pointer">
+                                    <PrinterIcon className="w-5 h-5" />
+                                    <span className="text-sm font-medium">Tải file PDF (.pdf)</span>
+                                </li>
+                            </ul>
+                        )}
                     </div>
                 </div>
 

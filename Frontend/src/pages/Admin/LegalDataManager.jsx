@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import Swal from 'sweetalert2';
 import AdminSidebar from '../../components/AdminSidebar';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -137,7 +138,7 @@ export default function LegalDataManager() {
     const handleAdd = async (e) => {
         e.preventDefault();
         if (!formData.title.trim() || !formData.content.trim()) {
-            alert('Vui lòng điền đầy đủ tiêu đề và nội dung!');
+            Swal.fire({ icon: 'warning', title: 'Vui lòng điền đầy đủ tiêu đề và nội dung!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
 
@@ -149,16 +150,16 @@ export default function LegalDataManager() {
             });
 
             if (response.data.success) {
-                alert('Thêm văn bản thành công!');
+                Swal.fire({ icon: 'success', title: 'Thêm văn bản thành công!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
                 setShowAddModal(false);
                 resetForm();
                 fetchLawData();
             } else {
-                alert(response.data.message || 'Thêm thất bại');
+                Swal.fire({ icon: 'error', title: response.data.message || 'Thêm thất bại', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } catch (error) {
             console.error('Lỗi khi thêm:', error);
-            alert(error.response?.data?.message || 'Lỗi server');
+            Swal.fire({ icon: 'error', title: error.response?.data?.message || 'Lỗi server', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         } finally {
             setModalLoading(false);
         }
@@ -182,7 +183,7 @@ export default function LegalDataManager() {
         e.preventDefault();
 
         if (!formData.title.trim()) {
-            alert('Tiêu đề văn bản không được để trống!');
+            Swal.fire({ icon: 'warning', title: 'Tiêu đề văn bản không được để trống!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
 
@@ -205,16 +206,16 @@ export default function LegalDataManager() {
             });
 
             if (response.data.success) {
-                alert('Cập nhật thành công!');
+                Swal.fire({ icon: 'success', title: 'Cập nhật thành công!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
                 setShowEditModal(false);
                 resetForm();
                 fetchLawData();
             } else {
-                alert(response.data.message || 'Cập nhật thất bại');
+                Swal.fire({ icon: 'error', title: response.data.message || 'Cập nhật thất bại', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } catch (error) {
             console.error('Lỗi khi cập nhật:', error);
-            alert(error.response?.data?.message || 'Lỗi server');
+            Swal.fire({ icon: 'error', title: error.response?.data?.message || 'Lỗi server', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         } finally {
             setModalLoading(false);
         }
@@ -236,15 +237,15 @@ export default function LegalDataManager() {
             });
 
             if (response.data.success) {
-                alert('Xóa thành công!');
+                Swal.fire({ icon: 'success', title: 'Xóa thành công!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
                 setShowDeleteModal(false);
                 fetchLawData();
             } else {
-                alert(response.data.message || 'Xóa thất bại');
+                Swal.fire({ icon: 'error', title: response.data.message || 'Xóa thất bại', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } catch (error) {
             console.error('Lỗi khi xóa:', error);
-            alert(error.response?.data?.message || 'Lỗi server');
+            Swal.fire({ icon: 'error', title: error.response?.data?.message || 'Lỗi server', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         } finally {
             setModalLoading(false);
         }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import Swal from 'sweetalert2';
 import usePersistedState from '../../hooks/usePersistedState';
 import {
     ArrowPathIcon,
@@ -132,7 +133,7 @@ export default function VideoLegalAnalysis() {
 
     const handleAnalyze = async () => {
         if (!videoUrl.trim()) {
-            alert('Vui lòng nhập URL YouTube của video.');
+            Swal.fire({ icon: 'warning', title: 'Vui lòng nhập URL YouTube của video.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
 
@@ -179,7 +180,7 @@ export default function VideoLegalAnalysis() {
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text || '');
-        alert('Đã copy Transcript!');
+        Swal.fire({ icon: 'success', title: 'Đã copy Transcript!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
     };
 
     const handleSave = async () => {
@@ -215,18 +216,25 @@ export default function VideoLegalAnalysis() {
 
             if (res.data.success) {
                 setIsSaved(true);
-                alert('Đã lưu vào ContractHistory!');
+                Swal.fire({ icon: 'success', title: 'Đã lưu vào ContractHistory!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } catch (err) {
             console.error('Lỗi lưu video:', err);
-            alert('Không thể lưu.');
+            Swal.fire({ icon: 'error', title: 'Không thể lưu.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleReset = () => {
-        if (!window.confirm('Reset sẽ xoá dữ liệu hiện tại. Bạn chắc chứ?')) return;
+    const handleReset = async () => {
+        const result = await Swal.fire({
+            title: 'Reset sẽ xoá dữ liệu hiện tại. Bạn chắc chứ?',
+            showCancelButton: true,
+            confirmButtonText: 'Đồng ý',
+            cancelButtonText: 'Hủy',
+            confirmButtonColor: '#B8985D'
+        });
+        if (!result.isConfirmed) return;
 
         setVideoUrl('');
         setEmbedUrl('');

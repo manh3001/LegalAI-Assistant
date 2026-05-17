@@ -11,6 +11,7 @@ import {
     EyeIcon,
     TrashIcon
 } from "@heroicons/react/24/outline";
+import Swal from 'sweetalert2';
 
 export default function LegalDocuments() {
     const navigate = useNavigate();
@@ -48,7 +49,7 @@ export default function LegalDocuments() {
         localStorage.removeItem("user"); // Xóa user từ localStorage
         localStorage.removeItem("accessToken"); // Xóa token từ localStorage
         // Có thể thêm navigate('/login') để redirect về trang đăng nhập
-        alert("Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.");
+        Swal.fire({ icon: 'warning', title: 'Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
     }, []);
 
     const fetchStats = async () => {
@@ -180,7 +181,7 @@ export default function LegalDocuments() {
     const toggleStar = async (doc) => {
         // 1. Chỉ cho phép lưu nếu đã đăng nhập (Quy tắc Clean Sync)
         if (!userId) {
-            alert("Vui lòng đăng nhập để sử dụng tính năng lưu văn bản!");
+            Swal.fire({ icon: 'warning', title: 'Vui lòng đăng nhập để sử dụng tính năng lưu văn bản!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
 
@@ -229,14 +230,14 @@ export default function LegalDocuments() {
             if (err.response && err.response.status === 401) {
                 handleUnauthorized();
             } else {
-                alert("Không thể kết nối máy chủ. Trạng thái lưu đã được hoàn tác.");
+                Swal.fire({ icon: 'error', title: 'Không thể kết nối máy chủ. Trạng thái lưu đã được hoàn tác.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         }
     };
     const removeSavedLaw = async (savedLawId) => {
         if (!userId) { // Kiểm tra userId trước khi gọi DB
             saveMyLaws(myLaws.filter(l => l.Id !== savedLawId));
-            alert("Bạn chưa đăng nhập. Luật đã được xóa khỏi danh sách lưu tạm.");
+            Swal.fire({ icon: 'info', title: 'Bạn chưa đăng nhập. Luật đã được xóa khỏi danh sách lưu tạm.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
         try {
@@ -248,7 +249,7 @@ export default function LegalDocuments() {
         } catch (err) {
             console.error("Lỗi khi xóa luật đã lưu từ panel (DB):", err);
             if (err.response && err.response.status === 401) handleUnauthorized();
-            alert("Có lỗi xảy ra khi xóa luật đã lưu. Vui lòng thử lại.");
+            Swal.fire({ icon: 'error', title: 'Có lỗi xảy ra khi xóa luật đã lưu. Vui lòng thử lại.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         }
     };
 
@@ -283,7 +284,7 @@ export default function LegalDocuments() {
     const removeRecentDoc = async (recentDocId) => {
         if (!userId) { // Kiểm tra userId trước khi gọi DB
             saveRecent(recentDocs.filter(r => r.Id !== recentDocId));
-            alert("Bạn chưa đăng nhập. Mục đã được xóa khỏi lịch sử xem tạm.");
+            Swal.fire({ icon: 'info', title: 'Bạn chưa đăng nhập. Mục đã được xóa khỏi lịch sử xem tạm.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
         try {
@@ -295,7 +296,7 @@ export default function LegalDocuments() {
         } catch (err) {
             console.error("Lỗi khi xóa lịch sử xem gần đây (DB):", err);
             if (err.response && err.response.status === 401) handleUnauthorized();
-            alert("Có lỗi xảy ra khi xóa lịch sử. Vui lòng thử lại.");
+            Swal.fire({ icon: 'error', title: 'Có lỗi xảy ra khi xóa lịch sử. Vui lòng thử lại.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         }
     };
 

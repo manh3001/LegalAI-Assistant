@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { LayoutDashboard, Database, Scale, Users, Activity, Search, RefreshCw, Settings, ShieldCheck, Zap, MoreVertical, Plus } from 'lucide-react';
+import Swal from 'sweetalert2';
 import AdminSidebar from '../../components/AdminSidebar';
 const backendBase = 'http://localhost:8000/api';
 
@@ -43,11 +44,11 @@ export default function AdminUsers() {
                 setCurrentPage(res.data.currentPage || 1);
                 setTotalPages(res.data.totalPages || 1);
             } else {
-                alert(res.data?.message || 'Không thể tải danh sách người dùng');
+                Swal.fire({ icon: 'error', title: res.data?.message || 'Không thể tải danh sách người dùng', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } catch (error) {
             console.error('Lỗi khi tải người dùng:', error);
-            alert(error.response?.data?.message || error.message || 'Lỗi server');
+            Swal.fire({ icon: 'error', title: error.response?.data?.message || error.message || 'Lỗi server', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         } finally {
             setLoading(false);
         }
@@ -63,11 +64,11 @@ export default function AdminUsers() {
             if (res.data?.success && res.data.user) {
                 setUsers((prev) => prev.map((user) => user.Id === userId ? res.data.user : user));
             } else {
-                alert(res.data?.message || 'Cập nhật trạng thái thất bại');
+                Swal.fire({ icon: 'error', title: res.data?.message || 'Cập nhật trạng thái thất bại', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } catch (error) {
             console.error('Lỗi khi khóa/mở khóa người dùng:', error);
-            alert(error.response?.data?.message || error.message || 'Lỗi server');
+            Swal.fire({ icon: 'error', title: error.response?.data?.message || error.message || 'Lỗi server', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         } finally {
             setActionLoading(null);
         }
@@ -81,7 +82,7 @@ export default function AdminUsers() {
     const handleAddUser = async (e) => {
         e.preventDefault();
         if (!addForm.fullName.trim() || !addForm.email.trim() || !addForm.password.trim()) {
-            alert('Vui lòng điền đầy đủ thông tin!');
+            Swal.fire({ icon: 'warning', title: 'Vui lòng điền đầy đủ thông tin!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             return;
         }
 
@@ -92,16 +93,16 @@ export default function AdminUsers() {
             const res = await axios.post(`${backendBase}/admin/users`, addForm, { headers });
 
             if (res.data?.success) {
-                alert('Thêm người dùng thành công!');
+                Swal.fire({ icon: 'success', title: 'Thêm người dùng thành công!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
                 setShowAddModal(false);
                 setAddForm({ fullName: '', email: '', password: '', role: 'USER' });
                 fetchUsers(currentPage); // Refresh danh sách
             } else {
-                alert(res.data?.message || 'Thêm người dùng thất bại');
+                Swal.fire({ icon: 'error', title: res.data?.message || 'Thêm người dùng thất bại', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } catch (error) {
             console.error('Lỗi khi thêm người dùng:', error);
-            alert(error.response?.data?.message || error.message || 'Lỗi server');
+            Swal.fire({ icon: 'error', title: error.response?.data?.message || error.message || 'Lỗi server', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         } finally {
             setAddLoading(false);
         }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import Swal from 'sweetalert2';
 
 export default function EditProfileModal({ isOpen, onClose, userData }) {
     const [formData, setFormData] = useState({
@@ -29,7 +30,7 @@ export default function EditProfileModal({ isOpen, onClose, userData }) {
 
     const handleSave = () => {
         console.log("Dữ liệu cập nhật:", formData);
-        alert("Hệ thống đã ghi nhận thay đổi thông tin cá nhân thành công!");
+        Swal.fire({ icon: 'success', title: 'Hệ thống đã ghi nhận thay đổi thông tin cá nhân thành công!', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         onClose();
     };
 

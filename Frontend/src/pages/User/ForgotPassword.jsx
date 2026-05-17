@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EyeIcon, EyeSlashIcon, KeyIcon } from '@heroicons/react/24/outline';
+import Swal from 'sweetalert2';
 import logo from "../../assets/icons/logo.png";
 
 export default function ForgotPassword() {
@@ -11,13 +12,14 @@ export default function ForgotPassword() {
     const handleReset = (e) => {
         e.preventDefault();
         if (!data.new || !data.confirm) {
-            return alert("Thông báo lỗi yêu cầu nhập đầy đủ thông tin");
+            Swal.fire({ icon: 'warning', title: 'Thông báo lỗi yêu cầu nhập đầy đủ thông tin', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
+            return;
         }
         if (data.new !== data.confirm) {
-            return alert("Thông báo lỗi: Mật khẩu không khớp");
+            Swal.fire({ icon: 'warning', title: 'Thông báo lỗi: Mật khẩu không khớp', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
+            return;
         }
-        alert("Thông báo khôi phục mật khẩu thành công");
-        navigate('/login');
+        Swal.fire({ icon: 'success', title: 'Thông báo khôi phục mật khẩu thành công', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, iconColor: '#B8985D' }).then(() => navigate('/login'));
     };
 
     return (

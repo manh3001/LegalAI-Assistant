@@ -13,6 +13,7 @@ import {
     Loader
 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import Swal from 'sweetalert2';
 
 const API_BASE = 'http://localhost:8000/api/admin/settings';
 
@@ -104,11 +105,11 @@ export default function AdminSettings() {
             });
 
             if (response.data.success) {
-                alert(' Đã lưu cấu hình thành công! Hệ thống đã cập nhật tức thì.');
+                Swal.fire({ icon: 'success', title: 'Đã lưu cấu hình thành công! Hệ thống đã cập nhật tức thì.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
             }
         } catch (error) {
             console.error('Lỗi khi lưu:', error);
-            alert(' Có lỗi xảy ra! Vui lòng thử lại.');
+            Swal.fire({ icon: 'error', title: 'Có lỗi xảy ra! Vui lòng thử lại.', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         } finally {
             setIsSaving(false);
         }

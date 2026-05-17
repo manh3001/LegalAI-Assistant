@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
+import Swal from 'sweetalert2';
+import pptxgen from 'pptxgenjs';
 import usePersistedState from '../../hooks/usePersistedState';
 import {
     DocumentChartBarIcon,
@@ -14,7 +16,10 @@ import {
     DocumentIcon,
     XMarkIcon,
     ScaleIcon,
-    PrinterIcon
+    PrinterIcon,
+    EllipsisVerticalIcon,
+    DocumentTextIcon,
+    DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
 
 import aiClient from "../../api/aiClient";
@@ -26,6 +31,7 @@ export default function AIPlanning() {
     const [planData, setPlanData] = usePersistedState('legai_plan_data', null);
     const [isSaving, setIsSaving] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
+    const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
 
     const [isDragging, setIsDragging] = useState(false);
     const [attachedFiles, setAttachedFiles] = useState([]);
@@ -47,19 +53,171 @@ export default function AIPlanning() {
         setAttachedFiles(prev => prev.filter((_, index) => index !== indexToRemove));
     };
     // hàm reset toàn bộ kế hoạch để tạo mới
+    const showToast = (message, icon = 'info') => {
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon,
+            title: message,
+            showConfirmButton: false,
+            timer: 2500,
+            timerProgressBar: true,
+            background: '#ffffff',
+            color: '#1A2530',
+            customClass: { popup: 'shadow-xl' }
+        });
+    };
+
     const handleNewPlan = () => {
-        if (window.confirm("Kế hoạch hiện tại sẽ bị xóa (nếu chưa Lưu hồ sơ). Bạn có chắc muốn tạo mới?")) {
-            setRawText('');
-            setPlanData(null);
-            setAttachedFiles([]);
-            setIsSaved(false);
+        Swal.fire({
+            title: 'Kế hoạch hiện tại sẽ bị xóa (nếu chưa Lưu hồ sơ). Bạn có chắc muốn tạo mới?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Xác nhận',
+            cancelButtonText: 'Hủy',
+            confirmButtonColor: '#B8985D',
+            cancelButtonColor: '#ef4444',
+            color: '#1A2530'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                setRawText('');
+                setPlanData(null);
+                setAttachedFiles([]);
+                setIsSaved(false);
+            }
+        });
+    };
+
+    const handleDownloadWord = () => {
+        setIsActionMenuOpen(false);
+
+        if (!planData || !Array.isArray(planData) || planData.length === 0) {
+            showToast('Không có dữ liệu để xuất file Word.', 'warning');
+            return;
         }
+
+        const grouped = planData.reduce((acc, task) => {
+            const phaseName = task.phase || 'Giai đoạn khác';
+            if (!acc[phaseName]) acc[phaseName] = [];
+            acc[phaseName].push(task);
+            return acc;
+        }, {});
+
+        let htmlString = `<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>`;
+        htmlString += `<h1>KẾ HOẠCH HÀNH ĐỘNG PHÁP LÝ</h1>`;
+
+        Object.keys(grouped).forEach((phaseName) => {
+            htmlString += `<h2>${phaseName}</h2>`;
+            htmlString += '<ul>';
+            grouped[phaseName].forEach((task) => {
+                const title = task.title || 'Không có tên task';
+                const assignee = task.assignee || 'Chưa phân công';
+                const deadline = task.deadline || 'Không có hạn';
+                const notes = task.legal_notes || task.description || 'Không có lưu ý';
+                htmlString += `<li>${title} | Phụ trách: ${assignee} | Hạn: ${deadline} | Lưu ý: ${notes}</li>`;
+            });
+            htmlString += '</ul>';
+        });
+
+        htmlString += '</body></html>';
+
+        const blob = new Blob(['\ufeff', htmlString], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'KeHoach_LegAI.doc';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showToast('Đã tải file Word thành công!', 'success');
+    };
+
+    const handleGenerateSlide = () => {
+        setIsActionMenuOpen(false);
+
+        if (!tasks || tasks.length === 0) {
+            showToast("Không có dữ liệu để tạo slide.", "warning");
+            return;
+        }
+
+        const grouped = tasks.reduce((acc, task) => {
+            const phase = task.phase || "Chưa phân loại";
+            if (!acc[phase]) acc[phase] = [];
+            acc[phase].push(task);
+            return acc;
+        }, {});
+
+        const pres = new pptxgen();
+        let slide = pres.addSlide();
+        slide.addText("KẾ HOẠCH THỰC THI PHÁP LÝ", {
+            x: 0.5,
+            y: 1.5,
+            w: "90%",
+            align: "center",
+            bold: true,
+            fontSize: 32,
+        });
+        slide.addText("Tạo tự động bởi LegAI", {
+            x: 0.5,
+            y: 3,
+            w: "90%",
+            align: "center",
+            italic: true,
+            fontSize: 18,
+            color: "666666",
+        });
+
+        Object.keys(grouped).forEach((phaseName) => {
+            slide = pres.addSlide();
+            slide.addText(phaseName, {
+                x: 0.5,
+                y: 0.5,
+                w: "90%",
+                fontSize: 28,
+                bold: true,
+                color: "1A2530",
+            });
+
+            // mảng Object chứa 'text' và 'options'
+            const items = grouped[phaseName].map((task) => {
+                const title = task.title || 'Không có tên task';
+                const assignee = task.assignee || 'Chưa phân công';
+                const deadline = task.deadline || 'Không có hạn';
+
+                return {
+                    text: `${title} – ${assignee} – ${deadline}`,
+                    options: { bullet: true, breakLine: true }
+                };
+            });
+
+
+            slide.addText(items, {
+                x: 0.5,
+                y: 1.5,
+                w: "90%",
+                fontSize: 16,
+                color: "333333",
+                margin: 0.1,
+                lineSpacing: 20
+            });
+        });
+
+        pres.writeFile({ fileName: "Slide_KeHoach_LegAI.pptx" })
+            .then(() => {
+                showToast("Đã tạo file Slide thành công!", "success");
+            })
+            .catch((error) => {
+                console.error("Error generating PPTX:", error);
+                showToast("Không thể tạo slide. Vui lòng thử lại.", "error");
+            });
     };
 
     const handleAnalyze = async () => {
         // 1. Kiểm tra đầu vào
         if (!rawText.trim() && attachedFiles.length === 0) {
-            alert("Vui lòng nhập yêu cầu!"); return;
+            showToast('Vui lòng nhập yêu cầu!', 'warning'); return;
         }
 
         // 2. Lấy Token
@@ -92,13 +250,13 @@ export default function AIPlanning() {
                     setPlanData(processedData);
                     setProgress(3);
                 } else {
-                    alert("AI không tạo được danh sách công việc. Hãy thử lại!");
+                    showToast('AI không tạo được danh sách công việc. Hãy thử lại!', 'warning');
                     setProgress(0);
                 }
             }
         } catch (error) {
             console.error(" Lỗi kết nối server:", error.message);
-            alert("Server đang bận hoặc bị sập. hãy kiểm tra lại Terminal Backend!");
+            showToast('Server đang bận hoặc bị sập. hãy kiểm tra lại Terminal Backend!', 'error');
             setProgress(0);
         } finally {
             setIsProcessing(false);
@@ -128,11 +286,11 @@ export default function AIPlanning() {
 
             if (res.data.success) {
                 setIsSaved(true);
-                alert(" Đã lưu Kế hoạch thành công!");
+                showToast('Đã lưu Kế hoạch thành công!', 'success');
             }
         } catch (err) {
             console.error("Lỗi lưu:", err);
-            alert(" Lỗi lưu trữ Database.");
+            showToast('Lỗi lưu trữ Database.', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -272,21 +430,52 @@ export default function AIPlanning() {
                         <span className="text-sm font-black uppercase tracking-widest">Lộ trình thực thi (Preview)</span>
                     </div>
 
-                    <div className="flex gap-3">
-                        {/* NÚT LƯU HỒ SƠ */}
-                        {planData && (
-                            <button onClick={handleSaveToHistory} disabled={isSaving || isSaved} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${isSaved
-                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                                : 'bg-[#1A2530] hover:bg-[#B8985D] text-white border border-transparent'
-                                }`}>
-                                {isSaving ? <ArrowPathIcon className="w-4 h-4 animate-spin stroke-2" /> : <CheckCircleIcon className="w-4 h-4 stroke-2" />}
-                                {isSaving ? "ĐANG LƯU..." : isSaved ? "ĐÃ LƯU" : "LƯU KẾ HOẠCH"}
-                            </button>
-                        )}
-                        {/* NÚT IN/PDF */}
-                        <button onClick={handlePrint} disabled={!planData} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-zinc-300 hover:border-[#B8985D] hover:text-[#B8985D] rounded-xl text-xs font-bold disabled:opacity-50 transition-colors shadow-sm">
-                            <PrinterIcon className="w-4 h-4 stroke-2" /> In / PDF
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => setIsActionMenuOpen(prev => !prev)}
+                            className="flex items-center justify-center w-11 h-11 rounded-xl border border-zinc-200 bg-white text-[#1A2530] hover:bg-[#B8985D]/10 transition-colors shadow-sm"
+                        >
+                            <EllipsisVerticalIcon className="w-5 h-5" />
                         </button>
+
+                        {isActionMenuOpen && (
+                            <div className="absolute right-6 mt-12 w-56 bg-white border border-zinc-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsActionMenuOpen(false); handleSaveToHistory(); }}
+                                    disabled={!planData || isSaving || isSaved}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#1A2530] transition-colors ${!planData || isSaving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#B8985D]/10'}`}
+                                >
+                                    <CheckCircleIcon className="w-5 h-5" />
+                                    Lưu Kế Hoạch
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadWord}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#1A2530] hover:bg-[#B8985D]/10 transition-colors"
+                                >
+                                    <DocumentTextIcon className="w-5 h-5" />
+                                    Tải file Word (.docx)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsActionMenuOpen(false); handlePrint(); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#1A2530] hover:bg-[#B8985D]/10 transition-colors"
+                                >
+                                    <DocumentArrowDownIcon className="w-5 h-5" />
+                                    Tải file PDF (.pdf)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleGenerateSlide}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[#1A2530] hover:bg-[#B8985D]/10 transition-colors"
+                                >
+                                    <PresentationChartBarIcon className="w-5 h-5" />
+                                    Tạo Slide (.pptx)
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 

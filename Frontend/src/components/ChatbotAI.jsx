@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import aiClient from '../api/aiClient';
 import LawyerCard from './LawyerCard';
+import Swal from 'sweetalert2';
 
 export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
     const navigate = useNavigate();
@@ -52,11 +53,17 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
     }, [input]);
 
     // --- HÀM TẠO CUỘC TRÒ CHUYỆN MỚI ---
-    const handleNewChat = () => {
+    const handleNewChat = async () => {
         // Cảnh báo nếu có data mà chưa lưu
         if (messages.length > 1 && !isSaved) {
-            const confirm = window.confirm("Phiên chat hiện tại chưa được lưu vào Hồ sơ. Bạn có chắc chắn muốn tạo cuộc trò chuyện mới?");
-            if (!confirm) return;
+            const result = await Swal.fire({
+                title: 'Phiên chat hiện tại chưa được lưu vào Hồ sơ. Bạn có chắc chắn muốn tạo cuộc trò chuyện mới?',
+                showCancelButton: true,
+                confirmButtonText: 'Đồng ý',
+                cancelButtonText: 'Hủy',
+                confirmButtonColor: '#B8985D'
+            });
+            if (!result.isConfirmed) return;
         }
 
         setMessages([
@@ -200,22 +207,22 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
         if (typeof content !== 'string') content = String(content);
 
         // BƯỚC 2: TỰ ĐỘNG ÉP ĐỊNH DẠNG TIÊU ĐỀ (ĐÃ FIX LỖI REGEX)
-    const titles = [
-        { key: 'Kết luận' },
-        { key: 'Phân tích' },
-        { key: 'Cơ sở pháp lý' },
-        { key: 'Lời khuyên' }
-    ];
+        const titles = [
+            { key: 'Kết luận' },
+            { key: 'Phân tích' },
+            { key: 'Cơ sở pháp lý' },
+            { key: 'Lời khuyên' }
+        ];
 
-    titles.forEach(item => {
-       
-        // Xóa sạch các icon cũ, dấu sao cũ, dấu hai chấm cũ
-        const regex = new RegExp(`([\\s\\*\\-⚖️🔍📚💡]*)${item.key}(:?\\s*|:?\\*\\*\\s*)?`, 'gi');
-        
-       
-        // Bơm 2 dấu \n ở sau (để đẩy nội dung của nó xuống dòng)
-        content = content.replace(regex, `\n\n**${item.key}:**\n\n`);
-    });
+        titles.forEach(item => {
+
+            // Xóa sạch các icon cũ, dấu sao cũ, dấu hai chấm cũ
+            const regex = new RegExp(`([\\s\\*\\-⚖️🔍📚💡]*)${item.key}(:?\\s*|:?\\*\\*\\s*)?`, 'gi');
+
+
+            // Bơm 2 dấu \n ở sau (để đẩy nội dung của nó xuống dòng)
+            content = content.replace(regex, `\n\n**${item.key}:**\n\n`);
+        });
         // BƯỚC 3: XỬ LÝ MIỄN TRỪ TRÁCH NHIỆM (Disclaimer)
         content = content.replace(/Nội dung do LegAI cung cấp.*/gi, (match) => `\n\n---\n*${match}*`);
 
