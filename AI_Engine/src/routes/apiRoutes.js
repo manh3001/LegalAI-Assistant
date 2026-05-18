@@ -10,6 +10,7 @@ const authController = require('../controllers/authController');
 const historyController = require('../controllers/historyController');
 const aiController = require('../controllers/aiController');
 const adminController = require('../controllers/adminController');
+const feedbackController = require('../controllers/feedbackController');
 
 // ============================================================
 // NHÓM 1: ROUTES CÔNG KHAI (KHÔNG CẦN LOGIN)
@@ -67,5 +68,10 @@ router.get('/user/recent-docs/:userId', historyController.getRecentDocs);
 // --- Xóa bỏ (Nếu cần) ---
 router.delete('/user/remove-saved-law', historyController.removeSavedLaw);
 router.delete('/user/remove-recent-doc', historyController.removeRecentDoc);
+
+// ============================================================
+// NHÓM 4: PHẢN HỒI NGƯỜI DÙNG (PROTECTED)
+// ============================================================
+router.post('/feedback', feedbackController.createFeedback);
 
 module.exports = router;

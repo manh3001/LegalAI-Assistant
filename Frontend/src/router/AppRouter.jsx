@@ -22,6 +22,7 @@ import AdminUsers from "../pages/Admin/AdminUsers";
 import AdminCrawler from "../pages/Admin/AdminCrawler";
 import AdminSettings from "../pages/Admin/AdminSettings";
 import LegalDataManager from "../pages/Admin/LegalDataManager";
+import AdminFeedback from "../pages/Admin/AdminFeedback";
 // ========================================================
 //  (ADMIN GUARD)
 
@@ -127,6 +128,16 @@ export default function UpAppRouter() {
           element={
             <AdminRoute>
               <LegalDataManager />
+            </AdminRoute>
+          }
+        />
+
+        {/* Thêm Route cho Quản lý phản hồi */}
+        <Route
+          path="/admin/feedback"
+          element={
+            <AdminRoute>
+              <AdminFeedback />
             </AdminRoute>
           }
         />

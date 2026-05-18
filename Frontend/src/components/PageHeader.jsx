@@ -18,6 +18,7 @@ import {
     ShieldCheckIcon,
     XMarkIcon
 } from "@heroicons/react/24/outline";
+import Swal from 'sweetalert2';
 
 import logo from "../assets/icons/logo.png";
 
@@ -39,7 +40,7 @@ export default function PageHeader() {
             if (userStr) {
                 try {
                     const u = JSON.parse(userStr);
-                    setUserName(u?.fullName || u?.name || u?.email || "Người dùng");
+                    setUserName(u?.fullName || u?.FullName || u?.name || u?.email || "Người dùng");
                 } catch (e) {
                     setUserName(userStr);
                 }
@@ -75,12 +76,38 @@ export default function PageHeader() {
     };
 
     const handleLogout = () => {
-        localStorage.clear();
+        // Xóa sạch token và thông tin người dùng
+        localStorage.removeItem('token');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('user');
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('userRole');
+        sessionStorage.clear();
         setIsLoggedIn(false);
         setUserName("");
         setIsMenuOpen(false);
-        window.location.href = "/";
+        window.dispatchEvent(new Event('user:update'));
+        // Điều hướng ngay lập tức về trang chủ
+        navigate('/');
+        // Hiện toast nhẹ thông báo đã đăng xuất an toàn
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã đăng xuất thành công', showConfirmButton: false, timer: 1500 });
     };
+
+    // Lấy userRole để kiểm tra
+    const getUserRole = () => {
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+            try {
+                const user = JSON.parse(userStr);
+                return String(user.Role || user.role || "").toUpperCase();
+            } catch (e) {
+                return "";
+            }
+        }
+        return "";
+    };
+
+    const userRole = getUserRole();
 
     const handleLoginRedirect = (path) => {
         setShowAuthModal(false);
@@ -254,9 +281,11 @@ export default function PageHeader() {
                                             </button>
                                         )}
 
-                                        <button onClick={() => { navigate("/gui-phan-hoi"); setIsMenuOpen(false); }} className="w-full text-left px-5 py-3 text-[13px] font-bold text-zinc-600 hover:bg-zinc-50 hover:text-[#B8985D] transition-colors flex items-center gap-3">
-                                            <ChatBubbleLeftEllipsisIcon className="h-5 w-5 stroke-2" /> Gửi phản hồi
-                                        </button>
+                                        {userRole !== 'ADMIN' && (
+                                            <button onClick={() => { navigate("/gui-phan-hoi"); setIsMenuOpen(false); }} className="w-full text-left px-5 py-3 text-[13px] font-bold text-zinc-600 hover:bg-zinc-50 hover:text-[#B8985D] transition-colors flex items-center gap-3">
+                                                <ChatBubbleLeftEllipsisIcon className="h-5 w-5 stroke-2" /> Gửi phản hồi
+                                            </button>
+                                        )}
 
                                         {isLoggedIn && (
                                             <>

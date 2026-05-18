@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Swal from 'sweetalert2';
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import {
@@ -45,7 +46,6 @@ export default function AuthPage() {
 
     const [mode, setMode] = useState("LOGIN");
     const [loading, setLoading] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
     const [form, setForm] = useState({
         fullName: "",
         email: "",
@@ -63,32 +63,38 @@ export default function AuthPage() {
     const backendBase = "http://localhost:8000/api";
 
     const onChange = (e) => {
-        setErrorMessage("");
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
     const switchMode = (nextMode) => {
-        setErrorMessage("");
         setMode(nextMode);
+    };
+
+    const validatePassword = (pwd) => {
+        if (!pwd || typeof pwd !== 'string') return false;
+        const re = /^(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/\?]).{6,}$/;
+        return re.test(pwd);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        setErrorMessage("");
 
         try {
             if (mode === "LOGIN") {
                 const { email, password } = form;
                 if (!email || !password) {
-                    setErrorMessage("Vui lòng nhập email và mật khẩu.");
+                    await Swal.fire({ icon: 'warning', title: 'Vui lòng nhập email và mật khẩu.', confirmButtonColor: '#B8985D' });
                     return;
                 }
 
                 const res = await axios.post(`${backendBase}/auth/login`, { email, password });
                 if (res.data?.user) {
                     const token = res.data.token || res.data.accessToken;
-                    if (token) localStorage.setItem("accessToken", token);
+                    if (token) {
+                        localStorage.setItem("token", token);
+                        localStorage.setItem("accessToken", token);
+                    }
 
                     localStorage.setItem("user", JSON.stringify(res.data.user));
                     localStorage.setItem("isLoggedIn", "true");
@@ -96,74 +102,91 @@ export default function AuthPage() {
                     const userRole = res.data.user.role;
                     if (userRole) localStorage.setItem("userRole", userRole);
 
-                    // =========================================================
-                    // LUỒNG REDIRECT KIỂM TRA TRANG ĐÍCH
-                    // =========================================================
+                    window.dispatchEvent(new Event('user:update'));
+
+                    await Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'Đăng nhập thành công',
+                        showConfirmButton: false,
+                        timer: 1500,
+                        background: '#B8985D',
+                        color: '#ffffff',
+                        iconColor: '#ffffff'
+                    });
+
                     const params = new URLSearchParams(window.location.search);
                     const redirectPath = params.get("redirect");
 
                     if (userRole === "ADMIN") {
-                        window.location.href = "/admin/dashboard";
+                        navigate('/admin/dashboard');
                     } else if (redirectPath) {
-                        // Giải mã URL và quay lại trang người dùng đang xem dở
-                        window.location.href = decodeURIComponent(redirectPath);
+                        navigate(decodeURIComponent(redirectPath));
                     } else {
-                        window.location.href = "/";
+                        navigate('/');
                     }
-                    // =========================================================
-
                 } else {
-                    setErrorMessage(res.data?.message || "Đăng nhập thất bại.");
+                    await Swal.fire({ icon: 'error', title: res.data?.message || 'Đăng nhập thất bại.', confirmButtonColor: '#B8985D' });
                 }
-            }
-            else if (mode === "REGISTER") {
+            } else if (mode === "REGISTER") {
                 const { fullName, email, password } = form;
                 if (!fullName || !email || !password) {
-                    setErrorMessage("Vui lòng điền đầy đủ thông tin.");
+                    await Swal.fire({ icon: 'warning', title: 'Vui lòng điền đầy đủ thông tin.', confirmButtonColor: '#B8985D' });
+                    return;
+                }
+
+                if (!validatePassword(password)) {
+                    await Swal.fire({ icon: 'warning', title: 'Mật khẩu phải từ 6 ký tự trở lên, bao gồm ít nhất một chữ số và một ký tự đặc biệt!', confirmButtonColor: '#B8985D' });
                     return;
                 }
 
                 const res = await axios.post(`${backendBase}/auth/register`, { fullName, email, password });
                 if (res.data?.user) {
+                    await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đăng ký thành công', showConfirmButton: false, timer: 2000 });
                     setMode("LOGIN");
                     setForm({ fullName: "", email: "", password: "", pin: "", newPassword: "" });
-                    setErrorMessage("Đăng ký thành công. Vui lòng đăng nhập.");
                 } else {
-                    setErrorMessage(res.data?.message || "Đăng ký thất bại.");
+                    await Swal.fire({ icon: 'error', title: res.data?.message || 'Đăng ký thất bại.', confirmButtonColor: '#B8985D' });
                 }
             } else if (mode === "FORGOT") {
                 const { email } = form;
                 if (!email) {
-                    setErrorMessage("Vui lòng nhập email.");
+                    await Swal.fire({ icon: 'warning', title: 'Vui lòng nhập email.', confirmButtonColor: '#B8985D' });
                     return;
                 }
 
                 const res = await axios.post(`${backendBase}/auth/forgot-password`, { email });
                 if (res.data.success) {
+                    await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: res.data.message || 'Mã PIN đã được gửi tới email của bạn.', showConfirmButton: false, timer: 2000 });
                     setMode("RESET");
-                    setErrorMessage(res.data.message || "Mã PIN đã được gửi tới email của bạn.");
                 } else {
-                    setErrorMessage(res.data.message || "Không thể thực hiện yêu cầu.");
+                    await Swal.fire({ icon: 'error', title: res.data.message || 'Không thể thực hiện yêu cầu.', confirmButtonColor: '#B8985D' });
                 }
             } else if (mode === "RESET") {
                 const { email, pin, newPassword } = form;
                 if (!email || !pin || !newPassword) {
-                    setErrorMessage("Vui lòng nhập email, mã PIN và mật khẩu mới.");
+                    await Swal.fire({ icon: 'warning', title: 'Vui lòng nhập email, mã PIN và mật khẩu mới.', confirmButtonColor: '#B8985D' });
+                    return;
+                }
+
+                if (!validatePassword(newPassword)) {
+                    await Swal.fire({ icon: 'warning', title: 'Mật khẩu phải từ 6 ký tự trở lên, bao gồm ít nhất một chữ số và một ký tự đặc biệt!', confirmButtonColor: '#B8985D' });
                     return;
                 }
 
                 const res = await axios.post(`${backendBase}/auth/reset-password`, { email, pin, newPassword });
                 if (res.data.success) {
+                    await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đổi mật khẩu thành công', showConfirmButton: false, timer: 2000 });
                     setMode("LOGIN");
                     setForm({ ...form, password: "", pin: "", newPassword: "" });
-                    setErrorMessage("Đổi mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới.");
                 } else {
-                    setErrorMessage(res.data.message || "Mã PIN không chính xác hoặc đã hết hạn.");
+                    await Swal.fire({ icon: 'error', title: res.data.message || 'Mã PIN không chính xác hoặc đã hết hạn.', confirmButtonColor: '#B8985D' });
                 }
             }
         } catch (err) {
             console.error(err);
-            setErrorMessage(err.response?.data?.message || err.message || "Lỗi server.");
+            await Swal.fire({ icon: 'error', title: err.response?.data?.message || err.message || 'Lỗi server.', confirmButtonColor: '#B8985D' });
         } finally {
             setLoading(false);
         }
@@ -275,14 +298,7 @@ export default function AuthPage() {
                                 </div>
                             )}
 
-                            {errorMessage && (
-                                <div className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${errorMessage.includes("thành công") || errorMessage.includes("đã được gửi")
-                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                    : "border-red-200 bg-red-50 text-red-600"
-                                    }`}>
-                                    {errorMessage}
-                                </div>
-                            )}
+
 
                             <button
                                 type="submit"

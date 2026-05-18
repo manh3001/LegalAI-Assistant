@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-    LayoutDashboard, Database, Users, Scale, Settings, ShieldCheck,
+    LayoutDashboard, Database, Users, Scale, MessageSquare, Settings, ShieldCheck,
     LogOut
 } from 'lucide-react';
 
@@ -10,6 +10,7 @@ const navigationItems = [
     { key: 'users', label: 'Quản lý Người dùng', icon: Users, path: '/admin/users' },
     { key: 'crawl', icon: Database, label: 'Trình thu thập', path: '/admin/crawl' },
     { key: 'lawdata', icon: Scale, label: 'Quản lý data luật', path: '/admin/lawdata' },
+    { key: 'feedback', icon: MessageSquare, label: 'Quản lý phản hồi', path: '/admin/feedback' },
     { key: 'settings', icon: Settings, label: 'Cài đặt', path: '/admin/settings' },
 ];
 

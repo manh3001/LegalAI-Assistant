@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const legalDataRoutes = require('./legalDataRoutes');
+const feedbackController = require('../controllers/feedbackController');
 const { isAdmin } = require('../middleware/authMiddleware');
 
 // Route lấy thống kê hệ thống - chỉ dành cho Admin
@@ -25,5 +26,12 @@ router.get('/feature-usage', isAdmin, adminController.getFeatureUsage);
 router.get('/history-analytics', isAdmin, adminController.getAiHistory);
 
 router.use('/legal-documents', legalDataRoutes);
+
+// ============================================================
+// PHẢN HỒI - QUẢN LÝ PHẢN HỒI NGƯỜI DÙNG (CHỈ ADMIN)
+// ============================================================
+router.get('/feedback', isAdmin, feedbackController.getFeedbacks);
+router.put('/feedback/status', isAdmin, feedbackController.updateStatus);
+router.post('/feedback/reply', isAdmin, feedbackController.replyFeedback);
 
 module.exports = router;

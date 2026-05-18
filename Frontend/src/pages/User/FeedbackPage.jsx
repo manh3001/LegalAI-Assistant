@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import Swal from 'sweetalert2';
 import {
     BugAntIcon,
     LightBulbIcon,
@@ -10,6 +12,8 @@ import {
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
 
+const backendBase = 'http://localhost:8000/api';
+
 export default function FeedbackPage() {
     const [formData, setFormData] = useState({
         name: "",
@@ -18,7 +22,8 @@ export default function FeedbackPage() {
         rating: 0,
         content: ""
     });
-    const [infoMessage, setInfoMessage] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+
     const feedbackTypes = [
         { id: 'Báo lỗi', icon: BugAntIcon },
         { id: 'Góp ý', icon: LightBulbIcon },
@@ -26,22 +31,81 @@ export default function FeedbackPage() {
         { id: 'Khác', icon: EllipsisHorizontalCircleIcon },
     ];
 
-    const handleSubmit = (e) => {
+    // Auto-fill name và email từ localStorage
+    useEffect(() => {
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+            try {
+                const user = JSON.parse(userStr);
+                setFormData(prev => ({
+                    ...prev,
+                    name: user.fullName || user.FullName || user.name || "",
+                    email: user.email || user.Email || ""
+                }));
+            } catch (error) {
+                console.error('Lỗi khi parse user từ localStorage:', error);
+            }
+        }
+    }, []);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!formData.name || !formData.email || !formData.content) {
-            setInfoMessage('Vui lòng điền đầy đủ các trường yêu cầu có dấu *');
+
+        // Validate trường bắt buộc
+        if (!formData.name.trim() || !formData.email.trim() || !formData.content.trim()) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Thiếu thông tin',
+                text: 'Vui lòng điền đầy đủ tên, email và nội dung phản hồi.',
+                confirmButtonColor: '#B8985D',
+                confirmButtonText: 'Đóng'
+            });
             return;
         }
-        let msg = '';
-        if (formData.type === 'Khác') {
-            msg = 'Chúng tôi đã tiếp nhận phản hồi của bạn. Xin cảm ơn.';
-        } else {
-            msg = `Chúng tôi đã tiếp nhận ${formData.type.toLowerCase()} của bạn. Xin cảm ơn vì đã gửi phản hồi.`;
+
+        setIsLoading(true);
+        try {
+            const token = localStorage.getItem('accessToken');
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+            const response = await axios.post(`${backendBase}/feedback`, formData, { headers });
+
+            if (response.data?.success) {
+                // Hiển thị Toast success
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Gửi phản hồi thành công!',
+                    text: 'Cảm ơn ý kiến đóng góp của bạn.',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2000,
+                    timerProgressBar: true
+                });
+
+                // Reset form
+                setFormData({ name: formData.name, email: formData.email, type: "Góp ý", rating: 0, content: "" });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Lỗi',
+                    text: response.data?.message || 'Gửi phản hồi thất bại.',
+                    confirmButtonColor: '#B8985D',
+                    confirmButtonText: 'Đóng'
+                });
+            }
+        } catch (error) {
+            console.error('Lỗi khi gửi phản hồi:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Lỗi Server',
+                text: error.response?.data?.message || error.message || 'Không thể gửi phản hồi. Vui lòng thử lại sau.',
+                confirmButtonColor: '#B8985D',
+                confirmButtonText: 'Đóng'
+            });
+        } finally {
+            setIsLoading(false);
         }
-
-        setInfoMessage(msg);
-
-        setFormData({ name: "", email: "", type: "Góp ý", rating: 0, content: "" });
     };
 
     return (
@@ -61,13 +125,6 @@ export default function FeedbackPage() {
                     </div>
 
                     <div className="p-8 space-y-6">
-                        {infoMessage && (
-                            <div className="mb-6 p-4 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-700 flex items-center justify-between">
-                                <div className="text-sm">Thông báo: {infoMessage}</div>
-                                <button type="button" onClick={() => setInfoMessage('')} className="ml-4 px-3 py-1 bg-emerald-500 text-white rounded">Đóng</button>
-                            </div>
-                        )}
-
                         <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">
@@ -148,10 +205,11 @@ export default function FeedbackPage() {
 
                         <button
                             type="submit"
-                            className="w-full bg-gradient-to-r from-[#B8985D] to-[#8E6D45] text-white py-3.5 rounded-xl font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-[1.01] hover:shadow-lg transition-all duration-300"
+                            disabled={isLoading}
+                            className="w-full bg-gradient-to-r from-[#B8985D] to-[#8E6D45] text-white py-3.5 rounded-xl font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-[1.01] hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <PaperAirplaneIcon className="w-4 h-4 -rotate-45" />
-                            Gửi phản hồi
+                            {isLoading ? 'Đang gửi...' : 'Gửi phản hồi'}
                         </button>
                     </form>
                 </div>

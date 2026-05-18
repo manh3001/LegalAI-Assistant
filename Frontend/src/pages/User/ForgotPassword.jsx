@@ -9,17 +9,23 @@ export default function ForgotPassword() {
     const [showPass, setShowPass] = useState({ new: false, confirm: false });
     const [data, setData] = useState({ new: "", confirm: "" });
 
-    const handleReset = (e) => {
+    const handleReset = async (e) => {
         e.preventDefault();
         if (!data.new || !data.confirm) {
-            Swal.fire({ icon: 'warning', title: 'Thông báo lỗi yêu cầu nhập đầy đủ thông tin', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
+            await Swal.fire({ icon: 'warning', title: 'Vui lòng nhập đầy đủ thông tin.', confirmButtonColor: '#B8985D' });
             return;
         }
         if (data.new !== data.confirm) {
-            Swal.fire({ icon: 'warning', title: 'Thông báo lỗi: Mật khẩu không khớp', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
+            await Swal.fire({ icon: 'warning', title: 'Mật khẩu không khớp.', confirmButtonColor: '#B8985D' });
             return;
         }
-        Swal.fire({ icon: 'success', title: 'Thông báo khôi phục mật khẩu thành công', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, iconColor: '#B8985D' }).then(() => navigate('/login'));
+        const pwdRe = /^(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{6,}$/;
+        if (!pwdRe.test(data.new)) {
+            await Swal.fire({ icon: 'warning', title: 'Mật khẩu phải từ 6 ký tự trở lên, bao gồm ít nhất một chữ số và một ký tự đặc biệt!', confirmButtonColor: '#B8985D' });
+            return;
+        }
+        await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Khôi phục mật khẩu thành công', showConfirmButton: false, timer: 2000 });
+        navigate('/login');
     };
 
     return (

@@ -533,25 +533,23 @@ Dữ liệu đầu vào:
 """${combinedText}"""
 
 I. NGUYÊN TẮC BẮT BUỘC (KHÔNG TUÂN THỦ = OUTPUT KHÔNG HỢP LỆ)
-1. Cấu trúc giai đoạn (PHASES)
-- BẮT BUỘC phải có tối thiểu 3 và tối đa 5 giai đoạn
-- Tên giai đoạn phải ngắn gọn, mang tính hành động (VD: "Chuẩn bị", "Nộp hồ sơ", "Giải quyết", "Thi hành")
-- NGHIÊM CẤM đặt tên kiểu: "Giai đoạn 1", "Phase 2",...
+1. CẤU TRÚC GIAI ĐOẠN LINH HOẠT (DYNAMIC PHASES)
+- BẮT BUỘC phải có TỐI THIỂU 3 giai đoạn lớn để đảm bảo lộ trình mạch lạc, không làm quá sơ sài khiến người dùng không hiểu cấu trúc tổng thể.
+- Số lượng giai đoạn có thể linh hoạt tăng thêm theo độ phức tạp của hồ sơ nhưng KHÔNG vượt quá 6 giai đoạn để tối ưu hiển thị giao diện.
+- Tên giai đoạn phải ngắn gọn, mang tính hành động (VD: "Chuẩn bị", "Nộp hồ sơ", "Giải quyết", "Thi hành"). NGHIÊM CẤM đặt tên kiểu: "Giai đoạn 1", "Phase 2",...
 
-2. Số lượng và độ chi tiết TASKS (ANTI-LAZINESS)
-- BẮT BUỘC tạo tối thiểu 12 và tối đa 18 TASKS
-- Mỗi TASK phải là hành động vi mô, có thể thực thi ngay
-- NGHIÊM CẤM: Gom nhiều hành động vào 1 task. Dùng mô tả chung chung (VD: "Xử lý hồ sơ").
-- Ví dụ hợp lệ: "Soạn thảo đơn khởi kiện theo Mẫu số 23-DS", "Đóng tạm ứng án phí tại Chi cục Thi hành án"
-- Ví dụ không hợp lệ: "Chuẩn bị hồ sơ khởi kiện"
+2. SỐ LƯỢNG VÀ ĐỘ CHI TIẾT TASKS (FLEXIBLE BOUNDARY ENGINE)
+- Số lượng nhiệm vụ (TASKS) phải được sinh ra một cách LINH HOẠT và PHÙ HỢP với độ phức tạp của hồ sơ đầu vào hoặc theo yêu cầu cụ thể của người dùng.
+- QUY TẮC GIỚI HẠN AN TOÀN (SAFE BOUNDARY): 
+  + TỐI THIỂU phải đạt 12 TASKS vi mô để tránh trường hợp kế hoạch quá sơ sài, chung chung, mất đi tính thực thi.
+  + TỐI ĐA nghiêm ngặt là 30 TASKS để kiểm soát tài nguyên hệ thống, tránh việc sinh ra quá nhiều nhiệm vụ tràn lan (như 50-100 tasks) gây xáo trộn, loãng thông tin và quá tải giao diện.
+- Mỗi TASK phải là hành động vi mô, cụ thể, có thể thực thi ngay và phân vai rõ ràng. NGHIÊM CẤM gom nhiều hành động lớn vào 1 task hoặc dùng mô tả chung chung (VD: "Xử lý hồ sơ").
 
-3. CƠ CHẾ TỰ KIỂM TRA (SELF-VALIDATION)
-- TRƯỚC KHI TRẢ KẾT QUẢ, bạn BẮT BUỘC:
-  + Đếm tổng số TASK
-  + Nếu < 12 → PHẢI tự động bổ sung
-  + Nếu > 18 → PHẢI tự động rút gọn (nhưng vẫn giữ vi mô)
-- CHỈ ĐƯỢC TRẢ OUTPUT khi số TASK nằm trong [12–18]
-
+3. CƠ CHẾ TỰ KIỂM TRA BIÊN ĐỘ (DYNAMIC SELF-VALIDATION)
+- TRƯỚC KHI XUẤT OUTPUT JSON, bạn BẮT BUỘC phải chạy thuật toán đếm tổng số TASK đã sinh ra:
+  + Nếu tổng số TASK < 12 ➔ BẮT BUỘC phải tự động phân rã các hành động lớn thành các bước vi mô nhỏ hơn để đạt tối thiểu 12 tasks.
+  + Nếu tổng số TASK > 30 ➔ BẮT BUỘC phải tự động gộp các hành động nhỏ có cùng bản chất hoặc lược bỏ các bước dư thừa để ép tổng số lượng task nằm gọn gàng trong biên độ an toàn [12–30].
+- CHỈ ĐƯỢC TRẢ OUTPUT khi số lượng TASK thỏa mãn điều kiện linh hoạt: 12 <= Số Task <= 30.
 4. LOGIC THỜI GIAN (TEMPORAL ENGINE)
 - Nếu user cung cấp mốc thời gian (VD: "bắt đầu từ ngày mai") → PHẢI suy luận thành ngày cụ thể.
 - Nếu KHÔNG có mốc → MẶC ĐỊNH bắt đầu từ ngày hiện tại (${today}).
@@ -594,9 +592,9 @@ Cấu trúc:
 ]
 
 III. THỨ TỰ THỰC HIỆN NỘI BỘ (CHAIN-OF-REASONING – KHÔNG IN RA)
+Phân tích hồ sơ -> Đối chiếu RAG và Tri thức nội tại cập nhật luật 2026 -> Trích xuất vai trò -> Xây dựng timeline -> Đếm dữ liệu để tự động co giãn số Phase (>=3) và số Task (12-30) -> Sinh task vi mô -> Gán deadline -> Gán assignee -> Thêm legal_notes sạch ngoặc vuông -> SELF-CHECK biên độ -> Xuất JSON.
 
 
-Phân tích hồ sơ -> Đối chiếu RAG và Tri thức nội tại cập nhật luật 2026 -> Trích xuất vai trò -> Xây dựng timeline -> Chia phase -> Sinh task vi mô -> Gán deadline -> Gán assignee -> Thêm legal_notes sạch ngoặc vuông -> SELF-CHECK số lượng task -> Xuất JSON.
 `;
 
         const responseText = await getActiveModel(prompt);

@@ -11,6 +11,18 @@ const transporter = nodemailer.createTransport({
 });
 
 
+// Hàm chung gửi email với tùy chọn
+exports.sendMail = async (mailOptions) => {
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Email sent: ' + info.response);
+        return true;
+    } catch (error) {
+        console.error('Send Email Error:', error);
+        throw error;
+    }
+};
+
 exports.sendResetEmail = async (to, pin) => {
     try {
         const mailOptions = {
