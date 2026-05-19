@@ -21,16 +21,15 @@ exports.ask = async (req, res) => {
 
         console.log(` LegAI nhận câu hỏi: "${userQuery}"`);
 
-        let relatedDocs = [];
+       let relatedDocs = [];
         try {
-            relatedDocs = await ragService.query(userQuery);
+            relatedDocs = await ragService.query(userQuery); // Đã tự động gọi hàm query có chứa field "dieu" mới
         } catch (err) {
             console.error(' Lỗi RAG (sẽ trả lời bằng kiến thức chung):', err.message);
         }
 
-        // Gọi sang GeminiService 
+        // Gọi sang GeminiService và chuyển giao relatedDocs
         const answer = await geminiService.generateAnswerWithGemini(userQuery, relatedDocs);
-
         return res.json({
             success: true,
             answer,
@@ -230,7 +229,7 @@ exports.analyzeContract = async (req, res) => {
         const mimeType = req.file.mimetype;
         let contractText = "";
 
-        // 2. Doc noi dung tu file (Giu nguyen logic goc cua ban)
+        // 2. Doc noi dung tu file 
         console.log("Dang doc file: " + req.file.originalname);
 
         if (mimeType === 'application/pdf') {
@@ -262,17 +261,17 @@ exports.analyzeContract = async (req, res) => {
             ? maskingResult
             : (maskingResult.maskedText || maskingResult.text || maskingResult.value || String(maskingResult));
 
-        // 🔍 SOI DỮ LIỆU Ở ĐÂY:
+        // SOI DỮ LIỆU Ở ĐÂY:
         console.log("--- [DEBUG] DỮ LIỆU SAU MASKING (GỬI ĐI) ---");
         console.log(finalMaskedText.substring(0, 500) + "...");
         console.log("------------------------------------------");
 
         console.log("Dang gui noi dung da bao mat cho Gemini phan tich...");
 
-        // 3. NHỚ ĐỔI BIẾN Ở ĐÂY NỮA NHÉ: Truyền finalMaskedText thay vì maskedText
+        // 3.Truyền finalMaskedText thay vì maskedText
         const analysisResult = await geminiService.analyzeContract(finalMaskedText, isUserPreMasked);
 
-        // 🔍 SOI KẾT QUẢ AI TRẢ VỀ:
+        //  SOI KẾT QUẢ AI TRẢ VỀ:
         console.log("--- [DEBUG] AI PHẢN HỒI (CHỨA MASKED DATA) ---");
         if (analysisResult.analysis_report && analysisResult.analysis_report.length > 0) {
             console.log("Trích dẫn mẫu:", analysisResult.analysis_report[0].clause);
@@ -485,7 +484,7 @@ exports.analyzeVideo = async (req, res) => {
         // =============================
         // 2. CALL AI
         // =============================
-        console.log(`📡 Phân tích video: ${videoUrl}`);
+        console.log(` Phân tích video: ${videoUrl}`);
 
         const aiData = await geminiService.analyzeVideo(videoUrl);
         const videoTitle = aiData.title || videoUrl;

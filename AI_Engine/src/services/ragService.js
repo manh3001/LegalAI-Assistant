@@ -3,7 +3,8 @@ require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { Pinecone } = require('@pinecone-database/pinecone');
 
-const PINECONE_INDEX_NAME = "legai-index";
+// Đọc tên index linh hoạt từ file .env, mặc định là legai-index-v2
+const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || "legai-index-v2";
 let genAI;
 let pc;
 let index;
@@ -13,8 +14,8 @@ let embedModel;
 const initCloudServices = () => {
     if (!genAI) {
         genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        // BẮT BUỘC: Đồng bộ với model đã upload (768dims)
-        embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+        // ĐỒNG BỘ MODEL XỊN NHẤT ĐỂ ĐỌC ĐƯỢC TOÀN DIỆN VĂN BẢN
+        embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
     }
     if (!pc) {
         pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
@@ -29,11 +30,19 @@ const query = async (queryText, k = 5) => {
 
         console.log(`🔍 Đang truy vấn Cloud cho: "${queryText}"`);
 
-        // Biến câu hỏi thành Vector (3072 chiều)
-        const result = await embedModel.embedContent(queryText);
-        const queryVector = Array.from(result.embedding.values);
+        // Biến câu hỏi thành Vector bằng định dạng object chuẩn Protobuf
+        const result = await embedModel.embedContent({
+            content: {
+                role: "user",
+                parts: [{ text: queryText }]
+            },
+            taskType: "RETRIEVAL_QUERY"
+        });
+        
+        // CÔNG NGHỆ MRL: Chủ động chặt vector 3072 chiều xuống đúng 768 chiều để so khớp với V2
+        const queryVector = Array.from(result.embedding.values).slice(0, 768);
 
-        // Tìm trên Pinecone
+        // Tìm kiếm trên Pinecone
         const searchResults = await index.query({
             vector: queryVector,
             topK: k,
@@ -47,7 +56,8 @@ const query = async (queryText, k = 5) => {
                 id: match.id,
                 title: match.metadata.title || "Tài liệu Pháp luật",
                 content: match.metadata.text || "Nội dung không khả dụng",
-                sourceUrl: match.metadata.source_url || "#",
+                dieu: match.metadata.dieu || "Không rõ", // <--- HỨNG LẤY ĐIỀU TỪ PINECONE METADATA V2
+                sourceUrl: match.metadata.source || "#",
                 score: match.score
             }));
         }
