@@ -10,7 +10,8 @@ exports.getAllDocuments = async (req, res) => {
     const request = pool.request();
 
     // 1. Lấy và làm sạch tham số từ URL
-    const search = (req.query.search || '').trim();
+    const rawSearch = req.query.search || '';
+    const search = rawSearch.replace(/\s+/g, ' ').trim();
     const category = (req.query.category || '').trim();
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -20,8 +21,13 @@ exports.getAllDocuments = async (req, res) => {
     let whereClause = ` WHERE 1=1 `;
 
     if (search) {
-      whereClause += ` AND (Title LIKE @search OR DocumentNumber LIKE @search)`;
-      request.input('search', sql.NVarChar, `%${search}%`);
+      const keywords = search.split(' ').filter(Boolean);
+      const keywordConditions = keywords.map((keyword, index) => {
+        const paramName = `searchTerm${index}`;
+        request.input(paramName, sql.NVarChar, `%${keyword}%`);
+        return `(Title LIKE @${paramName} OR DocumentNumber LIKE @${paramName})`;
+      });
+      whereClause += ` AND ${keywordConditions.join(' AND ')}`;
     }
 
     // Nếu category không phải là rỗng và không phải các nhãn "Tất cả"

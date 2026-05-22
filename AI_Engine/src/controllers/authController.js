@@ -1,5 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const googleAuthService = require('../services/googleAuthService');
+const authService = require('../services/authService');
 const { sql, pool, poolConnect } = require('../config/db');
 const mailService = require('../services/mailService');
 
@@ -45,11 +47,12 @@ exports.register = async (req, res) => {
     request.input('Password', sql.NVarChar(sql.MAX), hashedPassword);
     request.input('FullName', sql.NVarChar(200), fullName || null);
     request.input('Role', sql.NVarChar(20), 'USER');
+    request.input('AuthProvider', sql.NVarChar(50), 'local');
 
     const insertSql = `
-      INSERT INTO dbo.Users (Email, Password, FullName, Role)
-      OUTPUT INSERTED.Id, INSERTED.Email, INSERTED.FullName, INSERTED.Role
-      VALUES (@Email, @Password, @FullName, @Role)
+      INSERT INTO dbo.Users (Email, Password, FullName, Role, AuthProvider, CreatedAt, UpdatedAt)
+      OUTPUT INSERTED.Id, INSERTED.Email, INSERTED.FullName, INSERTED.Role, INSERTED.AuthProvider
+      VALUES (@Email, @Password, @FullName, @Role, @AuthProvider, GETDATE(), GETDATE())
     `;
 
     const result = await request.query(insertSql);
@@ -93,7 +96,7 @@ exports.login = async (req, res) => {
     const request = pool.request();
     request.input('Email', sql.NVarChar(320), email);
 
-    const selectSql = `SELECT Id, Email, Password, FullName, Role, Status FROM dbo.Users WHERE Email = @Email`;
+    const selectSql = `SELECT Id, Email, Password, FullName, Role, Status, AuthProvider FROM dbo.Users WHERE Email = @Email`;
     const result = await request.query(selectSql);
 
     if (!result.recordset || result.recordset.length === 0) {
@@ -105,6 +108,16 @@ exports.login = async (req, res) => {
     // 0. Kiểm tra tài khoản có đang bị khóa không
     if (userRow.Status && String(userRow.Status).toLowerCase() === 'banned') {
       return res.status(403).json({ success: false, message: 'Tài khoản của bạn đã bị quản trị viên khóa' });
+    }
+
+    // If this account is Google-only (AuthProvider == 'google'), do not allow password login
+    if (userRow.AuthProvider && String(userRow.AuthProvider).toLowerCase() === 'google') {
+      return res.status(401).json({ success: false, message: 'Tài khoản này được đăng nhập bằng Google. Vui lòng sử dụng Google Sign-In.' });
+    }
+
+    // If password is NULL/empty in DB, reject password login
+    if (!userRow.Password) {
+      return res.status(401).json({ success: false, message: 'Tài khoản chưa thiết lập mật khẩu. Vui lòng sử dụng Google Sign-In hoặc đặt lại mật khẩu.' });
     }
 
     // 1. Kiểm tra mật khẩu băm
@@ -380,5 +393,77 @@ exports.resetPassword = async (req, res) => {
   } catch (err) {
     console.error('Auth ResetPassword Error:', err);
     return res.status(500).json({ success: false, message: 'Lỗi hệ thống: ' + err.message });
+  }
+};
+
+/**
+ * POST /auth/oauth/google
+ * body: { idToken }
+ */
+exports.googleOAuth = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ success: false, message: 'Missing Google ID token.' });
+    }
+
+    const payload = await googleAuthService.verifyGoogleIdToken(idToken);
+    const email = payload.email;
+    const googleId = payload.sub;
+    const fullName = payload.name || payload.given_name || null;
+    const avatar = payload.picture || null;
+    const emailVerified = payload.email_verified;
+
+    if (!email || !googleId) {
+      return res.status(400).json({ success: false, message: 'Google token payload is missing required fields.' });
+    }
+
+    if (emailVerified !== undefined && emailVerified !== true) {
+      return res.status(403).json({ success: false, message: 'Email address is not verified by Google.' });
+    }
+
+    let user = await authService.findUserByGoogleId(googleId);
+    if (!user) {
+      const existingByEmail = await authService.findUserByEmail(email);
+      if (existingByEmail) {
+        user = await authService.updateUserWithGoogleInfo(existingByEmail.Id, {
+          googleId,
+          fullName,
+          avatar
+        });
+      } else {
+        user = await authService.createUserFromGoogle({
+          googleId,
+          email,
+          fullName,
+          avatar
+        });
+      }
+    }
+
+    if (!user) {
+      return res.status(500).json({ success: false, message: 'Unable to create or find user after Google sign-in.' });
+    }
+
+    const token = authService.generateJwtToken({
+      id: user.Id,
+      email: user.Email,
+      role: user.Role,
+      authProvider: user.AuthProvider || 'google'
+    });
+
+    const mappedUser = {
+      id: user.Id,
+      email: user.Email,
+      role: user.Role,
+      fullName: user.FullName,
+      avatar: user.Avatar,
+      authProvider: user.AuthProvider
+    };
+
+    return res.json({ success: true, message: 'Đăng nhập bằng Google thành công.', user: mappedUser, token });
+  } catch (err) {
+    console.error('Google OAuth Error:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Lỗi xác thực Google.' });
   }
 };

@@ -23,6 +23,11 @@ export default function LegalDocuments() {
     });
 
     const [userId, setUserId] = useState(null);
+
+    const normalizeSearchInput = useCallback((value) => {
+        if (!value || typeof value !== 'string') return '';
+        return value.replace(/\s+/g, ' ').trim();
+    }, []);
     const [documents, setDocuments] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -84,9 +89,10 @@ export default function LegalDocuments() {
         try {
             let categoryToSend = filter.category === "Tất cả" || filter.category === "Xem tất cả" ? "" : filter.category;
 
+            const normalizedSearch = normalizeSearchInput(filter.keyword);
             const res = await axios.get("http://localhost:8000/api/documents", {
                 params: {
-                    search: filter.keyword.trim(),
+                    search: normalizedSearch,
                     category: categoryToSend,
                     page: page,
                     limit: 10

@@ -12,6 +12,9 @@ import {
     SparklesIcon,
     UserIcon
 } from "@heroicons/react/24/outline";
+import GoogleLoginButton from '../../components/GoogleLoginButton';
+import { decodeJwt } from '../../utils/googleAuth';
+import { loginWithGoogle, saveAuthSession } from '../../services/authService';
 
 const modeCopy = {
     LOGIN: {
@@ -61,6 +64,7 @@ export default function AuthPage() {
 
     const currentCopy = modeCopy[mode] || modeCopy.LOGIN;
     const backendBase = "http://localhost:8000/api";
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
     const onChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
@@ -192,6 +196,54 @@ export default function AuthPage() {
         }
     };
 
+    const handleGoogleSuccess = async (credential) => {
+        setLoading(true);
+        try {
+            const payload = decodeJwt(credential);
+            if (!payload) throw new Error('Invalid credential');
+
+            // Send Google ID Token to backend for verification and receive a system JWT
+            const response = await loginWithGoogle(credential);
+
+            const user = response.user || {
+                id: payload.sub || payload.sid || payload.email,
+                name: payload.name || payload.given_name || '',
+                email: payload.email,
+                picture: payload.picture
+            };
+            const token = response.token || response.accessToken || credential;
+
+            saveAuthSession(user, token);
+
+            await Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Đăng nhập bằng Google thành công',
+                showConfirmButton: false,
+                timer: 1500,
+                background: '#B8985D',
+                color: '#ffffff',
+                iconColor: '#ffffff'
+            });
+
+            const params = new URLSearchParams(window.location.search);
+            const redirectPath = params.get("redirect");
+            if (redirectPath) navigate(decodeURIComponent(redirectPath));
+            else navigate('/');
+
+        } catch (err) {
+            console.error('Google sign-in error', err);
+            await Swal.fire({ icon: 'error', title: err.response?.data?.message || 'Không thể đăng nhập bằng Google', confirmButtonColor: '#B8985D' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleError = (err) => {
+        console.error('Google Sign-in error', err);
+    };
+
     const inputClass = "w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3.5 text-sm font-semibold text-[#1A2530] outline-none transition placeholder:text-zinc-400 focus:border-[#B8985D] focus:bg-white focus:ring-4 focus:ring-[#B8985D]/10";
     const labelClass = "mb-2 block text-xs font-black uppercase tracking-widest text-zinc-500";
 
@@ -299,6 +351,12 @@ export default function AuthPage() {
                             )}
 
 
+
+                            {mode === "LOGIN" && googleClientId && (
+                                <div className="mb-4">
+                                    <GoogleLoginButton onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
+                                </div>
+                            )}
 
                             <button
                                 type="submit"
