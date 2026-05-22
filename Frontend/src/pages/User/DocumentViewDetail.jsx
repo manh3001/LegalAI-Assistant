@@ -109,7 +109,29 @@ export default function DocumentViewDetail() {
 
   const renderTextWithBr = (text) => {
     if (typeof text !== 'string') return text;
-    return text.split('[NL]').reduce((prev, curr, i) => [prev, <br key={i} />, curr]);
+    return text
+      .replace(/\[NL\]/g, '\n')
+      .split('\n')
+      .flatMap((segment, i) => (i === 0 ? [segment] : [<br key={i} />, segment]));
+  };
+
+  const renderTdChild = (child) => {
+    if (typeof child !== 'string') return child;
+
+    const normalized = child.replace(/\[NL\]/g, '\n');
+    if (normalized.includes('CHỦ TỊCH')) {
+      return normalized.split(/(CHỦ TỊCH)/g).map((part, index) =>
+        part === 'CHỦ TỊCH' ? (
+          <span key={index} style={{ display: 'block', marginTop: '0.25rem' }}>
+            {part}
+          </span>
+        ) : (
+          renderTextWithBr(part)
+        )
+      );
+    }
+
+    return renderTextWithBr(normalized);
   };
 
   if (loading) return (
@@ -146,32 +168,32 @@ export default function DocumentViewDetail() {
 
           {/* HEADER */}
 
-         
-<div className="grid grid-cols-2 mb-10 text-[13px] border-b border-gray-100 pb-8">
-    
-    {/* Cột trái: Canh giữa trong 50% bên trái */}
-    <div className="flex flex-col items-center text-center">
-        <p className="font-bold uppercase leading-tight min-h-[40px] flex items-center justify-center">
-            {doc.Agency?.replace(/TTg|Hà Nội/gi, '').trim() || "CƠ QUAN BAN HÀNH"}
-        </p>
-        <p className="font-bold text-[10px] my-1">-------</p>
-        <p className="font-medium">Số: {doc.DocumentNumber}</p>
-    </div>
 
-    {/* Cột phải (Quốc hiệu): Canh giữa trong 50% bên phải */}
-    <div className="flex flex-col items-center text-center">
-        <div className="w-full">
-            <p className="font-bold uppercase tracking-tight">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-            <p className="font-bold">Độc lập - Tự do - Hạnh phúc</p>
-            <div className="w-24 h-[1px] bg-black mx-auto mt-1 mb-3"></div>
-            
-            {/* Địa danh: Nằm ngay dưới trục giữa của cột phải */}
-            <p className="italic text-[12px]">
-                {doc.IssueDateString?.replace(/^TTg/i, '').trim() || `Hà Nội, ${formatDate(doc.IssueDate)}`}
-            </p>
-        </div>
-    </div>
-</div>
+          <div className="grid grid-cols-2 mb-10 text-[13px] border-b border-gray-100 pb-8">
+
+            {/* Cột trái: Canh giữa trong 50% bên trái */}
+            <div className="flex flex-col items-center text-center">
+              <p className="font-bold uppercase leading-tight min-h-[40px] flex items-center justify-center">
+                {doc.Agency?.replace(/TTg|Hà Nội/gi, '').trim() || "CƠ QUAN BAN HÀNH"}
+              </p>
+              <p className="font-bold text-[10px] my-1">-------</p>
+              <p className="font-medium">Số: {doc.DocumentNumber}</p>
+            </div>
+
+            {/* Cột phải (Quốc hiệu): Canh giữa trong 50% bên phải */}
+            <div className="flex flex-col items-center text-center">
+              <div className="w-full">
+                <p className="font-bold uppercase tracking-tight">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                <p className="font-bold">Độc lập - Tự do - Hạnh phúc</p>
+                <div className="w-24 h-[1px] bg-black mx-auto mt-1 mb-3"></div>
+
+                {/* Địa danh: Nằm ngay dưới trục giữa của cột phải */}
+                <p className="italic text-[12px]">
+                  {doc.IssueDateString?.replace(/^TTg/i, '').trim() || `Hà Nội, ${formatDate(doc.IssueDate)}`}
+                </p>
+              </div>
+            </div>
+          </div>
 
           <div className="text-center mt-6 mb-12">
             <h2 className="text-[20px] font-bold leading-tight uppercase px-12">{doc.Title}</h2>
@@ -213,12 +235,13 @@ export default function DocumentViewDetail() {
                         verticalAlign: 'top',
                         border: isNoiNhanCell ? 'none' : '1px solid #9ca3af',
                         textAlign: isSignatureCell ? 'center' : 'left', // Chữ ký căn giữa trong cột phải
-                        paddingLeft: isSignatureCell ? '50px' : '8px'  // Đẩy khối chữ ký sang phải trang giấy
+                        paddingLeft: isSignatureCell ? '50px' : '8px',  // Đẩy khối chữ ký sang phải trang giấy
+
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
                       }}
                     >
-                      {React.Children.map(props.children, child =>
-                        typeof child === 'string' ? renderTextWithBr(child) : child
-                      )}
+                      {React.Children.map(props.children, child => renderTdChild(child))}
                     </td>
                   );
                 },

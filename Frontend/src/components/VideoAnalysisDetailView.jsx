@@ -9,7 +9,8 @@ import {
   ScaleIcon,
   DocumentTextIcon,
   ArrowPathIcon,
-  ClipboardDocumentIcon
+  ClipboardDocumentIcon,
+  CheckBadgeIcon
 } from "@heroicons/react/24/outline";
 import Swal from 'sweetalert2';
 
@@ -67,22 +68,20 @@ export default function VideoAnalysisDetailView({ record }) {
   }
 
   // 2. Mapping Key đồng bộ hoàn toàn với VideoLegalAnalysis.jsx
-  const summary = data.summary || data.Summary;
+  const summary = data?.summary || '';
   const contextType = data.context_type || data.contextType;
   const confidenceLevel = data.confidence?.level || 'N/A';
   const trustScore = data.trustScore ?? data.TrustScore ?? 0;
-  const legalMap = data.legal_map || data.legalMap || data.legalBases || [];
-  const criticalAnalysis = data.critical_analysis || data.criticalAnalysis || [];
-  const actionPlan = data.action_plan || data.actionPlan || [];
+  //const criticalAnalysis = data.critical_analysis || data.criticalAnalysis || [];
+  const actionPlan = data?.actionPlan || data?.action_plan || [];
   const scoringDetails = data.scoring_details || data.scoringDetails;
   const grounding = data.grounding;
-  // Lấy Transcript
-  const transcript = data.transcript || data.Transcript;
-
-  // Trick: Lấy lại videoUrl từ title (vì lúc save hệ thống lưu là "Phân tích video: [URL]")
+  const transcript = data?.transcript || '';
   const rawTitle = record.title || '';
   const videoUrl = data.videoUrl || rawTitle.replace('Phân tích video: ', '').trim();
-
+  const legal_summary_card = data?.legal_summary_card || null;
+  const critical_analysis_cards = data?.critical_analysis_cards || data?.criticalAnalysis || data?.critical_analysis || [];
+  const legalMap = data?.legalBases || data?.legalMap || data?.legal_map || [];
   // Hàm parse YouTube URL
   const parseYoutubeEmbedUrl = (url) => {
     if (!url) return '';
@@ -277,53 +276,90 @@ export default function VideoAnalysisDetailView({ record }) {
             </div>
           )}
 
-          {/* Section: Critical Analysis */}
-          {criticalAnalysis.length > 0 && (
-            <div className="rounded-2xl border-2 border-zinc-100 bg-white p-6 shadow-sm">
-              <h3 className="text-[10px] font-black uppercase text-red-600 mb-6 tracking-widest flex items-center gap-2">
-                <ShieldCheckIcon className="h-4 w-4" /> Phân tích sai lệch
-              </h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                {criticalAnalysis.map((item, i) => (
-                  <div key={i} className="rounded-xl border-2 border-zinc-50 p-5 bg-red-50/20">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-[8px] font-black uppercase tracking-widest text-zinc-400"> Vấn đề {i + 1}</span>
-                      <span className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase ${getSeverityTone(item.severity)}`}>
-                        {VIETSUB_SEVERITY[item.severity] || item.severity}
+          {/* ========================================================================= */}
+          {/* KHU VỰC PHÂN TÍCH SAI LỆCH THẺ 3 TẦNG ĐỒNG BỘ 100% VỚI MAN HÌNH CHÍNH */}
+          {/* ========================================================================= */}
+          {critical_analysis_cards && critical_analysis_cards.length > 0 ? (
+            <section className="rounded-2xl border-2 border-zinc-200 bg-white p-6 !mt-6">
+              <div className="mb-5 flex items-center gap-2">
+                <ShieldCheckIcon className="h-5 w-5 text-red-600" />
+                <h3 className="text-sm font-black uppercase tracking-[0.16em] text-zinc-950">
+                  Phân tích sai lệch thông tin
+                </h3>
+              </div>
+              <div className="grid gap-6 lg:grid-cols-1">
+                {critical_analysis_cards.map((card, idx) => (
+                  <article key={card.id || idx} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm space-y-4 text-left">
+                    {/* Header Card */}
+                    <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400">Khảo sát nội dung #{idx + 1}</span>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${card.severity === 'DANGEROUS' ? 'bg-red-100 text-red-700 border border-red-200' :
+                          card.severity === 'HIGH_RISK' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
+                            'bg-blue-100 text-blue-700 border border-blue-200'
+                        }`}>
+                        {card.severity === 'DANGEROUS' ? '🚨 Nguy hiểm' : card.severity === 'HIGH_RISK' ? '⚠️ Rủi ro cao' : '💡 Cần lưu ý'}
                       </span>
                     </div>
-                    <p className="text-xs italic text-zinc-500 mb-2 leading-relaxed">"{item.claim}"</p>
-                    <p className="text-[13px] font-black text-zinc-900">Sự thật: {item.truth}</p>
-                    <p className="text-[11px] text-red-600 font-bold italic mt-1">Lỗ hổng: {item.gap}</p>
+
+                    {/* Nội dung 3 tầng đối chiếu chi tiết */}
+                    <div className="grid grid-cols-1 gap-3 text-sm">
+                      {/* Tầng 1: Lời thoại clip */}
+                      <div className="bg-red-50/40 border border-red-100 p-3.5 rounded-xl">
+                        <span className="font-black text-red-800 text-[12px] uppercase block mb-1 tracking-wide">❌ Video nói:</span>
+                        <p className="text-zinc-700 font-medium italic">"{card.video_claim || card.claim || ''}"</p>
+                      </div>
+
+                      {/* Tầng 2: Nơi hiện chi tiết số hiệu Điều/Khoản luật của Nhà nước từ Pinecone */}
+                      <div className="bg-emerald-50/40 border border-emerald-100 p-3.5 rounded-xl">
+                        <span className="font-black text-emerald-800 text-[12px] uppercase block mb-1 tracking-wide">⚖️ Luật thực tế quy định:</span>
+                        <p className="text-zinc-800 font-semibold leading-relaxed">{card.law_fact || card.truth || 'Không tìm thấy cơ sở pháp lý cụ thể.'}</p>
+                      </div>
+
+                      {/* Tầng 3: Kết luận chốt chặn giải thích cho user */}
+                      <div className="bg-zinc-50 border border-zinc-200 p-3.5 rounded-xl">
+                        <span className="font-black text-zinc-800 text-[12px] uppercase block mb-1 tracking-wide">⚠️ Kết luận:</span>
+                        <p className="text-zinc-600 font-medium">{card.conclusion || card.gap || ''}</p>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : (
+            /* Dự phòng trường hợp video chuẩn hoặc chưa có dữ liệu sai lệch */
+            <section className="rounded-2xl border-2 border-zinc-200 bg-white p-6 !mt-6 text-center py-10">
+              <CheckBadgeIcon className="h-12 w-12 text-emerald-600 mx-auto mb-3" />
+              <h3 className="text-sm font-black uppercase text-zinc-950 mb-1">Nội dung đạt chuẩn pháp lý</h3>
+              <p className="text-xs text-zinc-400 italic">Hệ thống đối chiếu RAG không phát hiện dấu hiệu sai lệch thông tin trong video này.</p>
+            </section>
+          )}
+
+          {/* CƠ SỞ PHÁP LÝ ĐI KÈM PHỤ TRỢ (NẾU CÓ) */}
+          {legalMap.length > 0 && (
+            <section className="rounded-2xl border-2 border-zinc-100 bg-white p-6 shadow-sm !mt-6 text-left">
+              <h3 className="text-[10px] font-black uppercase text-zinc-950 mb-4 tracking-widest flex items-center gap-2">
+                <ScaleIcon className="h-4 w-4 text-emerald-600" /> Danh mục văn bản đối chiếu song song
+              </h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                {legalMap.map((item, i) => (
+                  <div key={i} className="rounded-xl border-2 border-zinc-50 p-4 flex items-start justify-between bg-zinc-50/20 hover:border-emerald-100 transition-colors">
+                    <div>
+                      <p className="text-xs font-black text-zinc-950">{item.law_name || item.lawName}</p>
+                      <p className="text-[10px] font-bold text-zinc-400 mt-1">Điều/Khoản: {item.article}</p>
+                    </div>
+                    <span className={`shrink-0 px-2.5 py-1 rounded-md text-[9px] font-black border ${item.status?.toLowerCase() === 'đúng' || item.status === 'VALID'
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                        : 'bg-red-50 text-red-600 border-red-100'
+                      }`}>
+                      {item.status || 'ĐANG ĐỐI CHIẾU'}
+                    </span>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Section: Legal Map */}
-          <div className="rounded-2xl border-2 border-zinc-100 bg-white p-6 shadow-sm !mt-10">
-            <h3 className="text-[10px] font-black uppercase text-zinc-950 mb-6 tracking-widest flex items-center gap-2">
-              <ScaleIcon className="h-4 w-4 text-emerald-600" /> Kiểm toán pháp lý
-            </h3>
-            <div className="grid gap-3 md:grid-cols-2">
-              {legalMap.length > 0 ? (
-                legalMap.map((item, i) => (
-                  <div key={i} className="rounded-xl border-2 border-zinc-50 p-4 flex items-start justify-between bg-zinc-50/20 hover:border-emerald-100 transition-colors">
-                    <div>
-                      <p className="text-xs font-black text-zinc-950">{item.law_name}</p>
-                      <p className="text-[10px] font-bold text-zinc-400 mt-1">Điều/Khoản: {item.article}</p>
-                    </div>
-                    <span className={`shrink-0 px-2.5 py-1 rounded-md text-[9px] font-black border ${item.status?.toLowerCase() === 'đúng' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                      {item.status || 'CẦN ĐỐI CHIẾU'}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs italic text-zinc-400 col-span-2">Không tìm thấy cơ sở pháp lý cụ thể.</p>
-              )}
-            </div>
-          </div>
+
         </motion.div>
       </div>
     </section>

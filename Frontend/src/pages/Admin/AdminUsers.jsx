@@ -260,18 +260,6 @@ export default function AdminUsers() {
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">Vai Trò</label>
-                                    <select
-                                        name="role"
-                                        value={addForm.role}
-                                        onChange={handleAddFormChange}
-                                        className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-xl outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-                                    >
-                                        <option value="USER">User</option>
-                                        <option value="ADMIN">Admin</option>
-                                    </select>
-                                </div>
 
                                 <div className="flex gap-3 pt-4">
                                     <button

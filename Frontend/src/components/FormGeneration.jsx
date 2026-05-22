@@ -8,31 +8,60 @@ import {
     ChatBubbleLeftEllipsisIcon,
     DocumentMagnifyingGlassIcon,
     ArrowPathIcon,
-    CheckBadgeIcon
-    , EllipsisVerticalIcon, DocumentTextIcon
+    CheckBadgeIcon,
+    EllipsisVerticalIcon,
+    DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import Swal from 'sweetalert2';
 import aiClient from "../api/aiClient";
 
 
+// ==============================================================================
+// COMPONENT FIELDINPUT TỰ ĐỘNG XUỐNG HÀNG VÀ CĂN LỀ THẲNG TẮP CHUẨN VĂN BẢN
+// ==============================================================================
+const FieldInput = ({ label, field, value, onChange, placeholder }) => {
+    const textareaRef = useRef(null);
 
-//  nhận dữ liệu từ ngoài truyền vào
-const FieldInput = ({ label, field, value, onChange, placeholder }) => (
-    <div className="flex items-center gap-2 mb-1">
-        <span className="font-semibold text-gray-800 text-[14px] print:text-black min-w-[140px]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>- {label}:</span>
-        <input
-            type="text"
-            // Dùng trực tiếp 'value' được truyền vào từ cha, không gọi formData nữa
-            value={value || ''}
-            // Dùng trực tiếp 'onChange' được truyền vào từ cha
-            onChange={(e) => onChange(field, e.target.value)}
-            placeholder={placeholder}
-            className="flex-1 border-b border-dashed border-gray-400 bg-transparent py-0.5 focus:outline-none focus:border-[#B8985D] transition-colors font-medium text-[14px]"
-            style={{ fontFamily: '"Times New Roman", Times, serif' }}
-        />
-    </div>
-);
+    // Thuật toán tự co giãn chiều cao theo nội dung thực tế khi dữ liệu thay đổi
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+        }
+    }, [value]);
 
+    return (
+        <div className="flex items-start gap-1 mb-2 w-full min-w-0" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+            {/* NHÃN TRƯỜNG: Ép cứng độ rộng 160px để chứa vừa vặn chữ "Tên Cá nhân/Tổ chức" không lo rớt dòng nhãn */}
+            <span
+                className="font-semibold text-gray-800 text-[14px] print:text-black min-w-[160px] max-w-[160px] inline-block select-none pt-0.5"
+                style={{ fontFamily: '"Times New Roman", Times, serif' }}
+            >
+                - {label}
+            </span>
+
+            {/* CỘT DẤU HAI CHẤM: Đứng độc lập cố định vị trí thẳng hàng từ trên xuống dưới */}
+            <span className="font-semibold text-gray-800 text-[14px] print:text-black select-none pt-0.5 mr-1" style={{ fontFamily: '"Times New Roman", Times, serif' }}>:</span>
+
+            {/* VÙNG NHẬP LIỆU: Sử dụng border dotted đơn giản của trình duyệt, chữ đè lên chấm */}
+            <div className="flex-1 min-w-0">
+                <textarea
+                    ref={textareaRef}
+                    value={value || ''}
+                    onChange={(e) => onChange(field, e.target.value)}
+                    placeholder={placeholder || '.......................................................................................................................................'}
+                    rows={1}
+                    className="w-full bg-transparent p-0 focus:outline-none focus:ring-0 font-medium text-[14px] text-gray-900 resize-none overflow-hidden block break-words whitespace-pre-wrap border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 focus:border-[#B8985D] pb-0.5 placeholder-gray-400"
+                    style={{
+                        fontFamily: '"Times New Roman", Times, serif',
+                        minHeight: '24px',
+                        lineHeight: '1.6'
+                    }}
+                />
+            </div>
+        </div>
+    );
+};
 
 export default function FormGeneration() {
     // 1. STATE QUẢN LÝ CHAT & LƯU TRỮ
@@ -72,7 +101,6 @@ export default function FormGeneration() {
 
     // Tự động bung hết chiều cao cho toàn bộ Điều Khoản Hợp Đồng
     useEffect(() => {
-
         setTimeout(() => {
             const contractTextareas = document.querySelectorAll('.contract-textarea');
             contractTextareas.forEach(textarea => {
@@ -92,8 +120,6 @@ export default function FormGeneration() {
         document.addEventListener('mousedown', handleOutside);
         return () => document.removeEventListener('mousedown', handleOutside);
     }, [isActionMenuOpen]);
-
-
 
 
     //  Hàm cập nhật
@@ -139,18 +165,12 @@ export default function FormGeneration() {
 
             setCurrentTemplate(aiData?.template_type ?? 'none');
 
-
-            // Đổ dữ liệu an toàn vào State và tự động LỌC SẠCH toàn bộ dấu [] rác
             setFormData(prev => {
-                // Hàm helper dùng Regex xóa sạch các dạng [1], [2], [ ] và trim khoảng trắng
                 const cleanText = (str) => {
-
-
                     if (!str) return '';
                     return str.normalize('NFC').replace(/\[\d+\]|\[\s*\]/g, '').trim();
                 };
 
-                // Lọc sạch cho từng mục trong mảng sections
                 const sanitizedSections = (aiData.extracted_data?.sections || []).map(section => ({
                     title: cleanText(section.title),
                     content: cleanText(section.content)
@@ -255,47 +275,131 @@ export default function FormGeneration() {
 
     const handleDownloadWord = () => {
         try {
-            const title = formData.ten_hop_dong || 'HỢP ĐỒNG';
-            const canCu = (formData.can_cu_luat || []).map(l => `<p>- ${l}</p>`).join('');
+            const title = (formData.ten_hop_dong || 'HỢP ĐỒNG').toUpperCase();
+
+            const canCu = (formData.can_cu_luat || []).map((luat, idx) => {
+                const isLast = idx === (formData.can_cu_luat.length - 1);
+                return `<p style="margin: 4px 0; padding-left: 15px; text-align: justify;">- ${luat}${isLast ? '.' : ';'}</p>`;
+            }).join('\n');
+
             const sectionsHtml = (formData.sections || []).map(s => `
-                <h3 style="font-weight:bold">${s.title || ''}</h3>
-                <p>${(s.content || '').replace(/\n/g, '<br>')}</p>
-            `).join('\n');
+            <h3 style="font-size: 15px; font-weight: bold; text-transform: uppercase; margin-top: 16px; margin-bottom: 6px; font-family: 'Times New Roman', Times, serif;">${s.title || ''}</h3>
+            <p style="font-size: 15px; line-height: 1.6; text-align: justify; margin: 0 0 10px 0; font-family: 'Times New Roman', Times, serif;">${(s.content || '').replace(/\n/g, '<br>')}</p>
+        `).join('\n');
 
             const html = `<!doctype html>
 <html>
-<head><meta charset='utf-8'><title>${title}</title></head>
-<body style="font-family: 'Times New Roman', Times, serif;">
-  <div style="text-align:center; font-weight:bold;">Cộng hòa Xã hội Chủ nghĩa Việt Nam</div>
-  <div style="text-align:center; font-weight:bold;">Độc lập - Tự do - Hạnh phúc</div>
-  <hr/>
-  <h1 style="text-align:center;">${title}</h1>
-  <div>${canCu}</div>
-  <h2>Thông tin Bên A</h2>
-  <p>Tên: ${formData.benA_name || ''}</p>
-  <p>MST/CCCD: ${formData.benA_id || ''}</p>
-  <p>Địa chỉ: ${formData.benA_address || ''}</p>
-  <p>Điện thoại: ${formData.benA_phone || ''}</p>
-  <p>Đại diện: ${formData.benA_rep || ''}</p>
-  <h2>Thông tin Bên B</h2>
-  <p>Tên: ${formData.benB_name || ''}</p>
-  <p>MST/CCCD: ${formData.benB_id || ''}</p>
-  <p>Địa chỉ: ${formData.benB_address || ''}</p>
-  <p>Điện thoại: ${formData.benB_phone || ''}</p>
-  <p>Đại diện: ${formData.benB_rep || ''}</p>
-  <div>${sectionsHtml}</div>
-  <br/>
-  <table width="100%">
-    <tr>
-      <td style="text-align:center; font-weight:bold;">BÊN A<br/>(Ký và ghi rõ họ tên)</td>
-      <td style="text-align:center; font-weight:bold;">BÊN B<br/>(Ký và ghi rõ họ tên)</td>
-    </tr>
-    <tr><td style="height:120px"></td><td></td></tr>
-    <tr>
-      <td style="text-align:center;">${formData.benA_rep || formData.benA_name || '........................'}</td>
-      <td style="text-align:center;">${formData.benB_rep || formData.benB_name || '........................'}</td>
-    </tr>
-  </table>
+<head>
+    <meta charset='utf-8'>
+    <title>${title}</title>
+    <style>
+        @page { size: A4; margin: 2cm; }
+        body { font-family: 'Times New Roman', Times, serif; font-size: 15px; line-height: 1.6; color: #000000; }
+        table { font-family: 'Times New Roman', Times, serif; font-size: 15px; border-collapse: collapse; }
+    </style>
+</head>
+<body>
+    <div style="text-align: center; font-weight: bold; font-size: 15px; text-transform: uppercase; margin-bottom: 2px;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+    <div style="text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 4px;">Độc lập - Tự do - Hạnh phúc</div>
+    <div style="text-align: center; font-size: 14px; margin-bottom: 20px; color: #555555;">------o0o------</div>
+    
+    <h1 style="text-align: center; font-size: 19px; font-weight: bold; uppercase; margin-bottom: 25px; line-height: 1.4;">${title}</h1>
+    
+    <p style="text-align: justify; font-style: italic; margin-bottom: 12px;">Hôm nay, ngày ${formData.ngay || '......'} tháng ${formData.thang || '......'} năm ${formData.nam || '......'}, tại ${formData.tai || '..........................................................................................................................'}</p>
+    <p style="font-weight: bold; margin-bottom: 15px;">- Chúng tôi gồm có các bên dưới đây:</p>
+    
+    <div style="margin-bottom: 20px; font-style: italic; color: #333333;">
+        ${canCu}
+    </div>
+    
+    <h2 style="font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">- BÊN A (${(formData.benA_role || 'BÊN ĐẶT GIA CÔNG').toUpperCase()}):</h2>
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 20px; margin-left: 15px;">
+      <tr height="26">
+        <td width="160" style="font-weight: bold; padding-bottom: 4px;">- Tên Cá nhân/Tổ chức</td>
+        <td width="15" style="font-weight: bold; padding-bottom: 4px;">:</td>
+        <td style="padding-bottom: 4px;">${formData.benA_name || '......................................................................................'}</td>
+      </tr>
+      <tr height="26">
+        <td style="font-weight: bold; padding-bottom: 4px;">- MST / CCCD</td>
+        <td style="font-weight: bold; padding-bottom: 4px;">:</td>
+        <td style="padding-bottom: 4px;">${formData.benA_id || '......................................................................................'}</td>
+      </tr>
+      <tr height="26">
+        <td style="font-weight: bold; padding-bottom: 4px;">- Địa chỉ</td>
+        <td style="font-weight: bold; padding-bottom: 4px;">:</td>
+        <td style="padding-bottom: 4px;">${formData.benA_address || '......................................................................................'}</td>
+      </tr>
+      <tr height="26">
+        <td style="font-weight: bold; padding-bottom: 4px;">- Điện thoại</td>
+        <td style="font-weight: bold; padding-bottom: 4px;">:</td>
+        <td style="padding-bottom: 4px;">${formData.benA_phone || '......................................................................................'}</td>
+      </tr>
+      <tr height="26">
+        <td style="font-weight: bold; padding-bottom: 4px;">- Đại diện</td>
+        <td style="font-weight: bold; padding-bottom: 4px;">:</td>
+        <td style="padding-bottom: 4px;">${formData.benA_rep || '......................................................................................'}</td>
+      </tr>
+    </table>
+
+    <h2 style="font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">- BÊN B (${(formData.benB_role || 'BÊN NHẬN GIA CÔNG').toUpperCase()}):</h2>
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 25px; margin-left: 15px;">
+      <tr height="26">
+        <td width="160" style="font-weight: bold; padding-bottom: 4px;">- Tên Cá nhân/Tổ chức</td>
+        <td width="15" style="font-weight: bold; padding-bottom: 4px;">:</td>
+        <td style="padding-bottom: 4px;">${formData.benB_name || '......................................................................................'}</td>
+      </tr>
+      <tr height="26">
+        <td style="font-weight: bold; padding-bottom: 4px;">- MST / CCCD</td>
+        <td style="font-weight: bold; padding-bottom: 4px;">:</td>
+        <td style="padding-bottom: 4px;">${formData.benB_id || '......................................................................................'}</td>
+      </tr>
+      <tr height="26">
+        <td style="font-weight: bold; padding-bottom: 4px;">- Địa chỉ</td>
+        <td style="font-weight: bold; padding-bottom: 4px;">:</td>
+        <td style="padding-bottom: 4px;">${formData.benB_address || '......................................................................................'}</td>
+      </tr>
+      <tr height="26">
+        <td style="font-weight: bold; padding-bottom: 4px;">- Điện thoại</td>
+        <td style="font-weight: bold; padding-bottom: 4px;">:</td>
+        <td style="padding-bottom: 4px;">${formData.benB_phone || '......................................................................................'}</td>
+      </tr>
+      <tr height="26">
+        <td style="font-weight: bold; padding-bottom: 4px;">- Đại diện</td>
+        <td style="font-weight: bold; padding-bottom: 4px;">:</td>
+        <td style="padding-bottom: 4px;">${formData.benB_rep || '......................................................................................'}</td>
+      </tr>
+    </table>
+
+    <div style="margin-top: 15px;">
+        ${sectionsHtml}
+    </div>
+    
+    <br/><br/>
+    
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="page-break-inside: avoid; margin-top: 30px;">
+        <tr>
+            <td width="50%" style="text-align: center; font-weight: bold; font-size: 15px; text-transform: uppercase; vertical-align: top;">
+                ${formData.benA_role || 'BÊN A'}<br/>
+                <span style="font-weight: normal; font-style: italic; font-size: 13px; text-transform: none; color: #555555;">(Ký và ghi rõ họ tên)</span>
+            </td>
+            <td width="50%" style="text-align: center; font-weight: bold; font-size: 15px; text-transform: uppercase; vertical-align: top;">
+                ${formData.benB_role || 'BÊN B'}<br/>
+                <span style="font-weight: normal; font-style: italic; font-size: 13px; text-transform: none; color: #555555;">(Ký và ghi rõ họ tên)</span>
+            </td>
+        </tr>
+        <tr>
+            <td height="110"></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td style="text-align: center; font-weight: bold; font-size: 14px; text-transform: uppercase;">
+                ${formData.benA_rep || formData.benA_name || '...........................................'}
+            </td>
+            <td style="text-align: center; font-weight: bold; font-size: 14px; text-transform: uppercase;">
+                ${formData.benB_rep || formData.benB_name || '...........................................'}
+            </td>
+        </tr>
+    </table>
 </body>
 </html>`;
 
@@ -303,7 +407,7 @@ export default function FormGeneration() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'HopDong_LegAI.doc';
+            a.download = `${formData.ten_hop_dong || 'HopDong_LegAI'}.doc`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -315,7 +419,6 @@ export default function FormGeneration() {
             Swal.fire({ icon: 'error', title: 'Không thể xuất file Word', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, iconColor: '#B8985D' });
         }
     };
-
     const handlePrint = () => window.print();
 
     return (
@@ -425,38 +528,83 @@ export default function FormGeneration() {
                         </div>
                     ) : (
                         <div className="max-w-[210mm] mx-auto min-h-[297mm] bg-white text-gray-900 p-12 md:p-16 shadow-[0_10px_40px_rgba(0,0,0,0.08)] relative leading-relaxed" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                            <div className="text-center mb-8">
-                                <h3 className="font-bold text-[15px] uppercase">Cộng hòa Xã hội Chủ nghĩa Việt Nam</h3>
-                                <h4 className="font-bold text-[15px] underline mb-2">Độc lập - Tự do - Hạnh phúc</h4>
-                                <p className="text-sm italic text-gray-600">------o0o------</p>
-                            </div>
-                            <div className="text-center mb-6">
-                                <h1 className="text-xl font-black uppercase mb-1">
-                                    <input
-                                        type="text"
-                                        value={(formData.ten_hop_dong || '').normalize('NFC')}
-                                        onChange={(e) => handleFormChange('ten_hop_dong', e.target.value)}
-                                        // BỎ class font-serif, đưa vào style inline chuẩn
-                                        className="w-full text-center bg-transparent focus:outline-none focus:bg-zinc-50 transition-colors font-bold uppercase"
-                                        style={{ fontFamily: '"Times New Roman", Times, serif' }}
-                                    />
-                                </h1>
-                                <p className="text-sm text-gray-600 italic" style={{ fontFamily: '"Times New Roman", Times, serif' }}>Hôm nay, tại ........................................</p>
+                            <div className="text-center mb-8" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                <h3 className="font-bold text-[15px] uppercase" style={{ fontFamily: '"Times New Roman", Times, serif' }}>Cộng hòa Xã hội Chủ nghĩa Việt Nam</h3>
+                                <h4 className="font-bold text-[15px] underline mb-2" style={{ fontFamily: '"Times New Roman", Times, serif' }}>Độc lập - Tự do - Hạnh phúc</h4>
+                                <p className="text-sm italic text-gray-600" style={{ fontFamily: '"Times New Roman", Times, serif' }}>------o0o------</p>
                             </div>
 
-                            <div className="space-y-6 text-justify">
+                            {/* TỰ ĐỘNG XUỐNG HÀNG KHI TIÊU ĐỀ QUÁ DÀI */}
+                            <div className="w-full text-center mb-6 px-4" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                <textarea
+                                    value={(formData.ten_hop_dong || '').normalize('NFC')}
+                                    onChange={(e) => handleFormChange('ten_hop_dong', e.target.value)}
+                                    rows={2}
+                                    className="w-full bg-transparent border-none p-0 focus:outline-none focus:bg-zinc-50/50 resize-none text-center text-xl font-bold uppercase text-gray-900 focus:ring-0 leading-normal tracking-wide block break-words whitespace-pre-wrap"
+                                    style={{ fontFamily: '"Times New Roman", Times, serif', height: 'auto' }}
+                                    onInput={(e) => {
+                                        e.target.style.height = 'auto';
+                                        e.target.style.height = e.target.scrollHeight + 'px';
+                                    }}
+                                />
+                            </div>
+
+                            <div className="space-y-6 text-justify" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                {/* DANH SÁCH CĂN CỨ LUẬT CHUẨN THỂ THỨC */}
                                 {formData.can_cu_luat && formData.can_cu_luat.length > 0 && (
-                                    <div className="italic text-sm space-y-1 mb-4 font-serif">
-                                        <p className="font-semibold">- Căn cứ theo:</p>
+                                    <div className="italic text-[14px] space-y-0.5 mb-4 text-gray-700 pl-2 font-serif" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                         {formData.can_cu_luat.map((luat, idx) => (
-                                            <p key={idx} className="ml-4">- {luat}</p>
+                                            <p key={idx} style={{ fontFamily: '"Times New Roman", Times, serif' }}>- {luat}{idx === formData.can_cu_luat.length - 1 ? '.' : ';'}</p>
                                         ))}
                                     </div>
                                 )}
 
-                                <div className="space-y-4">
+                                {/* MỤC THỜI GIAN ĐỊA ĐIỂM: CHO PHÉP AI ĐIỀN + USER GÕ TAY TRỰC TIẾP CHUẨN ĐƯỜNG CHẤM */}
+                                <div className="w-full mb-4 italic text-[14px] text-gray-800" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                    <div className="flex flex-wrap items-center gap-x-1 gap-y-1 leading-relaxed" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                        <span>Hôm nay, ngày</span>
+                                        <input
+                                            type="text"
+                                            value={formData.ngay || ''}
+                                            onChange={(e) => handleFormChange('ngay', e.target.value)}
+                                            placeholder="........."
+                                            className="w-14 bg-transparent border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 p-0 text-center focus:outline-none focus:ring-0 font-medium italic text-[14px] focus:border-[#B8985D]"
+                                            style={{ fontFamily: '"Times New Roman", Times, serif' }}
+                                        />
+                                        <span>tháng</span>
+                                        <input
+                                            type="text"
+                                            value={formData.thang || ''}
+                                            onChange={(e) => handleFormChange('thang', e.target.value)}
+                                            placeholder="........."
+                                            className="w-14 bg-transparent border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 p-0 text-center focus:outline-none focus:ring-0 font-medium italic text-[14px] focus:border-[#B8985D]"
+                                            style={{ fontFamily: '"Times New Roman", Times, serif' }}
+                                        />
+                                        <span>năm</span>
+                                        <input
+                                            type="text"
+                                            value={formData.nam || ''}
+                                            onChange={(e) => handleFormChange('nam', e.target.value)}
+                                            placeholder="............"
+                                            className="w-16 bg-transparent border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 p-0 text-center focus:outline-none focus:ring-0 font-medium italic text-[14px] focus:border-[#B8985D]"
+                                            style={{ fontFamily: '"Times New Roman", Times, serif' }}
+                                        />
+                                        <span>, tại</span>
+                                        <input
+                                            type="text"
+                                            value={formData.tai || ''}
+                                            onChange={(e) => handleFormChange('tai', e.target.value)}
+                                            placeholder="............................................................................................................................................"
+                                            className="flex-1 min-w-[200px] bg-transparent border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 p-0 focus:outline-none focus:ring-0 font-medium italic text-[14px] focus:border-[#B8985D] pb-0.5"
+                                            style={{ fontFamily: '"Times New Roman", Times, serif' }}
+                                        />
+                                    </div>
+                                    <p className="mt-2 font-semibold not-italic text-gray-900" style={{ fontFamily: '"Times New Roman", Times, serif' }}>- Chúng tôi gồm có các bên dưới đây:</p>
+                                </div>
+
+                                <div className="space-y-4" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                     <div>
-                                        <h2 className="font-bold uppercase mb-2 font-serif text-[14px]">BÊN A ({formData.benA_role || 'BÊN BÁN'}):</h2>
+                                        <h2 className="font-bold uppercase mb-2 font-serif text-[14px]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>BÊN A ({(formData.benA_role || 'BÊN BÁN').toUpperCase()}):</h2>
                                         <div className="pl-4">
                                             <FieldInput label="Tên Cá nhân/Tổ chức" field="benA_name" value={(formData.benA_name || '').normalize('NFC')} onChange={handleFormChange} />
                                             <FieldInput label="MST / CCCD" field="benA_id" value={(formData.benA_id || '').normalize('NFC')} onChange={handleFormChange} />
@@ -466,7 +614,7 @@ export default function FormGeneration() {
                                         </div>
                                     </div>
                                     <div>
-                                        <h2 className="font-bold uppercase mb-2 font-serif text-[14px]">BÊN B ({formData.benB_role || 'BÊN MUA'}):</h2>
+                                        <h2 className="font-bold uppercase mb-2 font-serif text-[14px]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>BÊN B ({(formData.benB_role || 'BÊN MUA').toUpperCase()}):</h2>
                                         <div className="pl-4">
                                             <FieldInput label="Tên Cá nhân/Tổ chức" field="benB_name" value={(formData.benB_name || '').normalize('NFC')} onChange={handleFormChange} />
                                             <FieldInput label="MST / CCCD" field="benB_id" value={(formData.benB_id || '').normalize('NFC')} onChange={handleFormChange} />
@@ -477,23 +625,21 @@ export default function FormGeneration() {
                                     </div>
                                 </div>
 
-
                                 {/* RENDER MẢNG SECTIONS ĐỘNG TÀNG HÌNH CHUẨN WORD */}
-                                <div className="space-y-6 pt-4">
+                                <div className="space-y-6 pt-4" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                     {formData.sections && formData.sections.length > 0 ? (
                                         formData.sections.map((section, index) => (
-                                            <div key={index} className="space-y-2">
+                                            <div key={index} className="space-y-2" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                                 {/* Ô nhập tiêu đề điều khoản */}
                                                 <input
                                                     type="text"
                                                     value={(section.title || '').normalize('NFC')}
                                                     onChange={(e) => handleSectionChange(index, 'title', e.target.value)}
-                                                    className="w-full font-bold uppercase text-[15px] bg-transparent focus:outline-none focus:bg-zinc-50"
+                                                    className="w-full font-bold uppercase text-[15px] bg-transparent focus:outline-none focus:bg-zinc-50 border-none p-0 focus:ring-0"
                                                     style={{ fontFamily: '"Times New Roman", Times, serif' }}
                                                 />
 
                                                 {/* Ô nhập nội dung điều khoản */}
-
                                                 <textarea
                                                     value={(section.content || '').normalize('NFC').replace(/\[\d+\]|\[\s*\]/g, '')}
                                                     onChange={(e) => handleSectionChange(index, 'content', e.target.value)}
@@ -519,16 +665,30 @@ export default function FormGeneration() {
                                     )}
                                 </div>
 
-                                <div className="pt-16 pb-10 grid grid-cols-2 gap-8 text-center break-inside-avoid font-serif">
-                                    <div>
-                                        <h3 className="font-bold uppercase mb-1 text-[14px]">Bên A</h3>
-                                        <p className="text-[12px] italic text-gray-500 mb-20">(Ký và ghi rõ họ tên)</p>
-                                        <p className="font-bold uppercase text-[14px]">{formData.benA_rep || formData.benA_name || '........................'}</p>
+                                {/* CHỮ KÝ GOM CỤM CHUẨN IN ẤN VĂN BẢN HÀNH CHÍNH */}
+                                <div className="pt-16 pb-10 grid grid-cols-2 gap-12 text-center break-inside-avoid" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                    <div className="flex flex-col items-center justify-between min-h-[160px]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                        <div>
+                                            <h3 className="font-bold uppercase text-[15px]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>{formData.benA_role || 'BÊN A'}</h3>
+                                            <p className="text-[13px] italic text-gray-500 mt-0.5" style={{ fontFamily: '"Times New Roman", Times, serif' }}>(Ký và ghi rõ họ tên)</p>
+                                        </div>
+                                        <div className="w-full flex items-center justify-center px-4 mt-auto">
+                                            <span className="font-bold uppercase text-[14px] leading-snug tracking-wide text-gray-900 block max-w-[280px] break-words" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                                {formData.benA_rep || formData.benA_name || '........................'}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="font-bold uppercase mb-1 text-[14px]">Bên B</h3>
-                                        <p className="text-[12px] italic text-gray-500 mb-20">(Ký và ghi rõ họ tên)</p>
-                                        <p className="font-bold uppercase text-[14px]">{formData.benB_rep || formData.benB_name || '........................'}</p>
+
+                                    <div className="flex flex-col items-center justify-between min-h-[160px]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                        <div>
+                                            <h3 className="font-bold uppercase text-[15px]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>{formData.benB_role || 'BÊN B'}</h3>
+                                            <p className="text-[13px] italic text-gray-500 mt-0.5" style={{ fontFamily: '"Times New Roman", Times, serif' }}>(Ký và ghi rõ họ tên)</p>
+                                        </div>
+                                        <div className="w-full flex items-center justify-center px-4 mt-auto">
+                                            <span className="font-bold uppercase text-[14px] leading-snug tracking-wide text-gray-900 block max-w-[280px] break-words" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                                {formData.benB_rep || formData.benB_name || '........................'}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

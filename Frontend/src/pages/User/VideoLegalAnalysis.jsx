@@ -12,7 +12,8 @@ import {
     ShieldCheckIcon,
     SparklesIcon,
     VideoCameraIcon,
-    MagnifyingGlassIcon
+    MagnifyingGlassIcon,
+    CheckBadgeIcon
 } from '@heroicons/react/24/outline';
 
 const getConfidenceTone = (level) => {
@@ -163,7 +164,9 @@ export default function VideoLegalAnalysis() {
                     scoringDetails: result.scoring_details,
                     criticalAnalysis: result.critical_analysis || [],
                     actionPlan: result.action_plan || [],
-                    grounding: result.grounding
+                    grounding: result.grounding,
+                    legal_summary_card: result.legal_summary_card || null,
+                    critical_analysis_cards: result.critical_analysis_cards || result.critical_analysis || []
                 });
 
                 setEmbedUrl(parseYoutubeEmbedUrl(videoUrl));
@@ -251,9 +254,7 @@ export default function VideoLegalAnalysis() {
 
     const confidenceLevel = videoData?.confidence?.level || 'N/A';
     const actionPlan = videoData?.actionPlan || [];
-    const criticalAnalysis = videoData?.criticalAnalysis || [];
-    const legalMap = videoData?.legalMap || [];
-
+    const critical_analysis_cards = videoData?.critical_analysis_cards || [];
     return (
         <div className="h-[calc(100vh-80px)] w-full overflow-y-auto bg-zinc-50 px-6 py-5 text-[#1A2530]">
             <div className="mx-auto flex h-full max-w-[1500px] flex-col gap-6">
@@ -299,7 +300,7 @@ export default function VideoLegalAnalysis() {
                                     disabled={isAnalyzing || !videoUrl.trim()}
                                     className="inline-flex h-11 min-w-[124px] items-center justify-center rounded-xl bg-zinc-950 px-5 text-xs font-black uppercase tracking-wider text-white transition hover:bg-amber-600 disabled:bg-zinc-200 disabled:text-zinc-400"
                                 >
-                                    {isAnalyzing ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : 'Analyze'}
+                                    {isAnalyzing ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : 'Phân tích'}
                                 </button>
                             </div>
 
@@ -418,59 +419,63 @@ export default function VideoLegalAnalysis() {
                                 </div>
                             ) : (
                                 <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
+
                                     <section className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-                                        {/* Trust Score Box - Section 1 của Grid */}
+                                        {/* Trust Score Box */}
                                         <div className="rounded-2xl border-2 border-zinc-200 bg-white p-6 flex flex-col items-center justify-center min-h-[250px]">
                                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 mb-5">Trust Score</p>
 
                                             {videoData.trustScore === -1 ? (
-                                                /* HIỂN THỊ KHI VIDEO LÀ NON_LEGAL (-1) */
                                                 <div className="flex flex-col items-center justify-center text-center px-2">
                                                     <div className="h-24 w-24 rounded-full border-2 border-dashed border-zinc-200 flex items-center justify-center mb-4">
                                                         <MagnifyingGlassIcon className="h-10 w-10 text-zinc-200" />
                                                     </div>
-                                                    <p className="text-[11px] font-black uppercase text-zinc-400 tracking-wider">
-                                                        Phạm vi không áp dụng
-                                                    </p>
-                                                    <p className="mt-2 text-[9px] font-bold text-zinc-400 italic leading-tight">
-                                                        Hệ thống xác định đây là nội dung giải trí/quảng cáo.
-                                                    </p>
+                                                    <p className="text-[11px] font-black uppercase text-zinc-400 tracking-wider">Phạm vi không áp dụng</p>
+                                                    <p className="mt-2 text-[9px] font-bold text-zinc-400 italic leading-tight">Hệ thống xác định đây là nội dung giải trí/quảng cáo.</p>
                                                 </div>
                                             ) : (
-                                                /* HIỂN THỊ VÒNG TRÒN KHI CÓ ĐIỂM (0-100) */
-                                                <>
-                                                    <div className="relative h-32 w-32">
-                                                        <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
-                                                            <circle cx="60" cy="60" r="48" fill="none" stroke="#f4f4f5" strokeWidth="8" />
-                                                            <circle
-                                                                cx="60" cy="60" r="48" fill="none" stroke="#18181b" strokeWidth="8"
-                                                                strokeLinecap="round"
-                                                                strokeDasharray={301.59}
-                                                                strokeDashoffset={301.59 - (301.59 * videoData.trustScore) / 100}
-                                                                className="transition-all duration-1000"
-                                                            />
-                                                        </svg>
-                                                        <div className="absolute inset-0 flex items-center justify-center">
-                                                            <span className="text-4xl font-black text-zinc-950 tabular-nums">{videoData.trustScore}</span>
-                                                            <span className="ml-0.5 pt-3 text-base font-black text-zinc-400">%</span>
-                                                        </div>
+                                                <div className="relative h-32 w-32">
+                                                    <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
+                                                        <circle cx="60" cy="60" r="48" fill="none" stroke="#f4f4f5" strokeWidth="8" />
+                                                        <circle
+                                                            cx="60" cy="60" r="48" fill="none" stroke="#18181b" strokeWidth="8"
+                                                            strokeLinecap="round"
+                                                            strokeDasharray={301.59}
+                                                            strokeDashoffset={301.59 - (301.59 * videoData.trustScore) / 100}
+                                                            className="transition-all duration-1000"
+                                                        />
+                                                    </svg>
+                                                    <div className="absolute inset-0 flex items-center justify-center">
+                                                        <span className="text-4xl font-black text-zinc-950 tabular-nums">{videoData.trustScore}</span>
+                                                        <span className="ml-0.5 pt-3 text-base font-black text-zinc-400">%</span>
                                                     </div>
-                                                    {videoData.scoringDetails?.calculation_note && (
-                                                        <p className="mt-5 text-[10px] italic leading-relaxed text-zinc-500 text-center">
-                                                            {videoData.scoringDetails.calculation_note}
-                                                        </p>
-                                                    )}
-                                                </>
+                                                </div>
                                             )}
                                         </div>
 
-                                        <div className="rounded-2xl border-2 border-zinc-200 bg-white p-6">
-                                            <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-zinc-950">
-                                                <ScaleIcon className="h-5 w-5 text-amber-600" />
-                                                Báo cáo Legal Audit
-                                            </h3>
-                                            <div className="font-['Inter',ui-sans-serif,system-ui] text-sm font-medium leading-[1.6] text-zinc-700">
-                                                {formatSummary(videoData.summary) || 'Không có tóm tắt dữ liệu.'}
+                                        {/* Khối nội dung kết quả rà soát & Tóm tắt luật bình dân */}
+                                        <div className="space-y-4">
+                                            {/* CARD TÓM TẮT LUẬT */}
+                                            {videoData.legal_summary_card && (
+                                                <div className="bg-amber-50/70 border border-amber-200 p-5 rounded-2xl">
+                                                    <h4 className="font-bold text-amber-900 text-sm uppercase tracking-wide flex items-center gap-2 mb-2" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                                        ⚖️ Tóm tắt luật hiện hành ({videoData.legal_summary_card.title_vong_luat || 'Cơ sở văn bản'})
+                                                    </h4>
+                                                    <p className="text-zinc-700 text-sm leading-relaxed font-medium text-justify">
+                                                        {videoData.legal_summary_card.brief_content}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Báo cáo phân tích Legal Audit tổng quan */}
+                                            <div className="rounded-2xl border-2 border-zinc-200 bg-white p-6">
+                                                <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-zinc-950">
+                                                    <ScaleIcon className="h-5 w-5 text-amber-600" />
+                                                    Báo cáo Legal Audit
+                                                </h3>
+                                                <div className="font-['Inter',ui-sans-serif,system-ui] text-sm font-medium leading-[1.6] text-zinc-700">
+                                                    {formatSummary(videoData.summary) || 'Không có tóm tắt dữ liệu.'}
+                                                </div>
                                             </div>
                                         </div>
                                     </section>
@@ -497,62 +502,62 @@ export default function VideoLegalAnalysis() {
                                             </div>
                                         </section>
                                     )}
-
-                                    {criticalAnalysis.length > 0 && (
-                                        <section className="rounded-2xl border-2 border-zinc-200 bg-white p-6">
-                                            <div className="mb-4 flex items-center gap-2">
+                                    {/* KHU VỰC PHÂN TÍCH SAI LỆCH THẺ 3 TẦNG - SỬA LẠI ĐỂ SỬ DỤNG BIẾN TRUNG GIAN ĐÃ KHAI BÁO */}
+                                    {critical_analysis_cards && critical_analysis_cards.length > 0 ? (
+                                        <section className="rounded-2xl border-2 border-zinc-200 bg-white p-6 !mt-6">
+                                            <div className="mb-5 flex items-center gap-2">
                                                 <ShieldCheckIcon className="h-5 w-5 text-red-600" />
                                                 <h3 className="text-sm font-black uppercase tracking-[0.16em] text-zinc-950">
-                                                    Phân tích sai lệch
+                                                    Phân tích sai lệch thông tin
                                                 </h3>
                                             </div>
-                                            <div className="grid gap-4 lg:grid-cols-2">
-                                                {criticalAnalysis.map((item, i) => (
-                                                    <article key={`${item.claim || 'critical'}-${i}`} className="rounded-2xl border-2 border-zinc-200 bg-white p-6">
-                                                        <div className="mb-4 flex items-center justify-between gap-3">
-                                                            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">Vấn Đề {i + 1}</span>
-                                                            <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${getSeverityTone(item.severity)}`}>
-                                                                {VIETSUB_SEVERITY[item.severity] || item.severity}
+                                            <div className="grid gap-6 lg:grid-cols-1">
+                                                {critical_analysis_cards.map((card, idx) => (
+                                                    <article key={card.id || idx} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm space-y-4">
+                                                        {/* Header Card */}
+                                                        <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+                                                            <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400">Khảo sát nội dung #{idx + 1}</span>
+                                                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${card.severity === 'DANGEROUS' ? 'bg-red-100 text-red-700 border border-red-200' :
+                                                                    card.severity === 'HIGH_RISK' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
+                                                                        'bg-blue-100 text-blue-700 border border-blue-200'
+                                                                }`}>
+                                                                {card.severity === 'DANGEROUS' ? '🚨 Nguy hiểm' : card.severity === 'HIGH_RISK' ? '⚠️ Rủi ro cao' : '💡 Cần lưu ý'}
                                                             </span>
                                                         </div>
 
-                                                        <p className="mb-3 text-[13px] font-black text-zinc-950 not-italic leading-relaxed">
-                                                            "{item.claim}"
-                                                        </p>
-                                                        <p className="text-sm font-bold leading-relaxed text-zinc-900">Sự thật: {item.truth}</p>
-                                                        <p className="mt-2 text-xs font-semibold leading-relaxed text-red-600">Lỗ hổng: {item.gap}</p>
+                                                        {/* Nội dung 3 tầng đối chiếu chi tiết */}
+                                                        <div className="grid grid-cols-1 gap-3 text-sm">
+                                                            {/* Tầng 1: Lời thoại clip */}
+                                                            <div className="bg-red-50/40 border border-red-100 p-3.5 rounded-xl">
+                                                                <span className="font-black text-red-800 text-[12px] uppercase block mb-1 tracking-wide"> Video nói:</span>
+                                                                <p className="text-zinc-700 font-medium italic">"{card.video_claim || card.claim || ''}"</p>
+                                                            </div>
+
+                                                            {/* Tầng 2: Nơi hiện chi tiết số hiệu Điều/Khoản luật của Nhà nước từ Pinecone */}
+                                                            <div className="bg-emerald-50/40 border border-emerald-100 p-3.5 rounded-xl">
+                                                                <span className="font-black text-emerald-800 text-[12px] uppercase block mb-1 tracking-wide"> Luật thực tế quy định:</span>
+                                                                <p className="text-zinc-800 font-semibold leading-relaxed">{card.law_fact || card.truth || 'Không tìm thấy cơ sở pháp lý cụ thể.'}</p>
+                                                            </div>
+
+                                                            {/* Tầng 3: Kết luận chốt chặn giải thích cho user */}
+                                                            <div className="bg-zinc-50 border border-zinc-200 p-3.5 rounded-xl">
+                                                                <span className="font-black text-zinc-800 text-[12px] uppercase block mb-1 tracking-wide"> Kết luận:</span>
+                                                                <p className="text-zinc-600 font-medium">{card.conclusion || card.gap || ''}</p>
+                                                            </div>
+                                                        </div>
                                                     </article>
                                                 ))}
                                             </div>
                                         </section>
-
-
+                                    ) : (
+                                        /* Dự phòng trường hợp video chuẩn hoặc chưa có dữ liệu sai lệch */
+                                        <section className="rounded-2xl border-2 border-zinc-200 bg-white p-6 !mt-6 text-center py-10">
+                                            <CheckBadgeIcon className="h-12 w-12 text-emerald-600 mx-auto mb-3" />
+                                            <h3 className="text-sm font-black uppercase text-zinc-950 mb-1">Nội dung đạt chuẩn pháp lý</h3>
+                                            <p className="text-xs text-zinc-400 italic">Hệ thống đối chiếu RAG không phát hiện dấu hiệu sai lệch thông tin trong video này.</p>
+                                        </section>
                                     )}
 
-                                    <section className="rounded-2xl border-2 border-zinc-200 bg-white p-[15px] !mt-[15px]">
-                                        <h3 className="mb-4 text-sm font-black uppercase tracking-[0.16em] text-zinc-950">
-                                            Kiểm toán pháp lý
-                                        </h3>
-                                        <div className="grid gap-3 md:grid-cols-2">
-                                            {legalMap.length > 0 ? (
-                                                legalMap.map((item, i) => (
-                                                    <article key={`${item.law_name || 'law'}-${i}`} className="rounded-xl border-2 border-zinc-200 bg-white p-5">
-                                                        <div className="flex items-start justify-between gap-4">
-                                                            <div>
-                                                                <p className="text-sm font-black text-zinc-950">{item.law_name || 'Văn bản chưa xác định'}</p>
-                                                                <p className="mt-1 text-xs font-medium text-zinc-500">Điều/Khoản: {item.article || 'Cần đối chiếu thêm'}</p>
-                                                            </div>
-                                                            <span className="shrink-0 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[10px] font-black uppercase text-zinc-600">
-                                                                {item.status || 'N/A'}
-                                                            </span>
-                                                        </div>
-                                                    </article>
-                                                ))
-                                            ) : (
-                                                <p className="text-sm italic text-zinc-400">Không tìm thấy cơ sở pháp lý cụ thể.</p>
-                                            )}
-                                        </div>
-                                    </section>
                                 </motion.div>
                             )}
                         </div>

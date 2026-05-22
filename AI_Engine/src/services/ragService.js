@@ -2,6 +2,7 @@
 require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { Pinecone } = require('@pinecone-database/pinecone');
+const SystemConfig = require('../config/SystemConfig'); // 1. Bổ sung import config từ UI
 
 // Đọc tên index linh hoạt từ file .env, mặc định là legai-index-v2
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || "legai-index-v2";
@@ -9,19 +10,32 @@ let genAI;
 let pc;
 let index;
 let embedModel;
+let currentApiKey = ""; // 2. Biến theo dõi Key hiện tại
 
-// 1. Khởi tạo kết nối hệ thống
+// 1. Khởi tạo kết nối hệ thống (Hỗ trợ Hot-Reload Key từ UI)
 const initCloudServices = () => {
-    if (!genAI) {
-        genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        // ĐỒNG BỘ MODEL XỊN NHẤT ĐỂ ĐỌC ĐƯỢC TOÀN DIỆN VĂN BẢN
-        embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
+    // 3. Ưu tiên lấy Key từ SystemConfig (do UI cập nhật), nếu không có mới lấy từ .env
+    const activeKey = SystemConfig?.geminiApiKey || process.env.GEMINI_API_KEY;
+
+    if (!activeKey) {
+        console.error("Lỗi Pinecone RAG: Không tìm thấy API Key!");
+        return;
     }
+
+    // 4. KIỂM TRA HOT-RELOAD: Nếu chưa có AI HOẶC sếp vừa đổi Key mới trên UI
+    if (!genAI || currentApiKey !== activeKey) {
+        console.log("🔄 RAG Service nhận API Key mới, đang cập nhật kết nối...");
+        genAI = new GoogleGenerativeAI(activeKey);
+        embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
+        currentApiKey = activeKey; // Lưu lại vết key để đối chiếu lần sau
+    }
+
     if (!pc) {
         pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
         index = pc.index(PINECONE_INDEX_NAME);
     }
 };
+
 
 // 2. Hàm tìm kiếm tri thức pháp luật từ Cloud
 const query = async (queryText, k = 5) => {
@@ -38,7 +52,7 @@ const query = async (queryText, k = 5) => {
             },
             taskType: "RETRIEVAL_QUERY"
         });
-        
+
         // CÔNG NGHỆ MRL: Chủ động chặt vector 3072 chiều xuống đúng 768 chiều để so khớp với V2
         const queryVector = Array.from(result.embedding.values).slice(0, 768);
 
@@ -50,7 +64,7 @@ const query = async (queryText, k = 5) => {
         });
 
         if (searchResults.matches && searchResults.matches.length > 0) {
-            console.log(` Đã lấy được ${searchResults.matches.length} tài liệu từ Pinecone.`);
+            //console.log(` Đã lấy được ${searchResults.matches.length} tài liệu từ Pinecone.`);
 
             return searchResults.matches.map(match => ({
                 id: match.id,

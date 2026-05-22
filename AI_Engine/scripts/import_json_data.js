@@ -114,8 +114,6 @@ const importData = async () => {
             let shouldVectorize = true;
 
             if (check.recordset.length > 0) {
-                // ÉP HỆ THỐNG ĐẨY LẠI DATA ĐỂ NẠP LÊN V2 DÙ DB ĐÃ LƯU RỒI
-                console.log(`⚠️ Đã có trong DB, đang ép chạy lại để đẩy vector ngữ nghĩa lên Pinecone V2...`);
                 shouldInsertSQL = false;
                 shouldVectorize = true;
             }
@@ -126,7 +124,6 @@ const importData = async () => {
                 continue;
             }
 
-            // BƯỚC A: LƯU VÀO SQL SERVER
             if (shouldInsertSQL) {
                 console.log(`💾 Đang lưu mới vào SQL Server...`);
                 await pool.request()
@@ -134,6 +131,9 @@ const importData = async () => {
                     .input('title', sql.NVarChar(500), law.title)
                     .input('docNum', sql.NVarChar(100), law.documentNumber || 'Chưa cập nhật')
                     .input('year', sql.Int, typeof law.issueYear === 'number' ? law.issueYear : 2026)
+
+                    .input('agency', sql.NVarChar(255), law.agency || 'Chưa cập nhật')
+                    .input('issueDateString', sql.NVarChar(100), law.issueDateString || 'Chưa cập nhật')
                     .input('status', sql.NVarChar(50), law.status)
                     .input('category', sql.NVarChar(100), law.category || 'Lĩnh vực khác')
                     .input('content', sql.NVarChar(sql.MAX), cleanContent)
@@ -141,17 +141,45 @@ const importData = async () => {
                     .input('createdAt', sql.DateTime2, new Date(law.createdAt || Date.now()))
                     .query(`
             INSERT INTO dbo.LegalDocuments 
-            (Id, Title, DocumentNumber, IssueYear, Status, Category, Content, SourceUrl, CreatedAt, SyncStatusSsms, SyncStatusPinecone)
-            VALUES (@id, @title, @docNum, @year, @status, @category, @content, @url, @createdAt, 'success', 'pending')
+            (Id, Title, DocumentNumber, IssueYear, Agency, IssueDateString, Status, Category, Content, SourceUrl, CreatedAt, SyncStatusSsms, SyncStatusPinecone)
+            VALUES (@id, @title, @docNum, @year, @agency, @issueDateString, @status, @category, @content, @url, @createdAt, 'success', 'pending')
         `);
             }
 
+
             // BƯỚC B: TẠO VECTOR NGỮ NGHĨA VÀ ĐẨY LÊN PINECONE
             if (shouldVectorize) {
+                // KIỂM TRA THÔNG MINH: Nếu trong DB đã đánh dấu là 'success' thì BỎ QUA
+                const statusCheck = await pool.request()
+                    .input('id', sql.NVarChar(100), docId)
+                    .query('SELECT SyncStatusPinecone FROM LegalDocuments WHERE Id = @id');
+
+                if (statusCheck.recordset.length > 0 && statusCheck.recordset[0].SyncStatusPinecone === 'success') {
+                    console.log(`⏩ Văn bản ${docId} đã có trên Pinecone. Bỏ qua để tiết kiệm Quota.`);
+                    continue; // Nhảy sang văn bản tiếp theo ngay lập tức
+                }
+
                 console.log(`🚀 Đang tiến hành Vector hóa và đẩy lên Pinecone V2...`);
+
+                // THÊM CƠ CHẾ DỌN DẸP PINECONE: Tránh trùng lặp luật mới đè luật cũ
+                const safeVectorId = toAsciiId(docId);
+                try {
+                    console.log(`🧹 Kiểm tra và dọn dẹp các bản ghi cũ của ${docId} trên Pinecone...`);
+                    // Phương pháp an toàn: Liệt kê các id tiềm năng và xóa
+                    // Vì chúng ta chunk data theo dạng docId_chunk_0, docId_chunk_1... 
+                    // Để xóa sạch gọn nhẹ, chúng ta sẽ xóa thủ công khoảng 500 chunk tiềm năng (đủ cho 1 đạo luật)
+                    const potentialIdsToDelete = [];
+                    for (let i = 0; i < 500; i++) {
+                        potentialIdsToDelete.push(`${safeVectorId}_chunk_${i}`);
+                    }
+                    // Chia nhỏ mảng để xóa (Pinecone giới hạn 1000 id mỗi lần delete)
+                    await index.deleteMany(potentialIdsToDelete);
+                } catch (delErr) {
+                    console.warn(`⚠️ Cảnh báo dọn dẹp (có thể bỏ qua nếu là luật nạp lần đầu): ${delErr.message}`);
+                }
+
                 const chunkData = smartChunk(cleanContent);
                 const vectors = [];
-                const safeVectorId = toAsciiId(docId);
 
                 for (let chunkIdx = 0; chunkIdx < chunkData.length; chunkIdx++) {
                     try {
@@ -168,7 +196,7 @@ const importData = async () => {
 
                         vectors.push({
                             id: `${safeVectorId}_chunk_${chunkIdx}`,
-                            values: vector768, // <-- Nạp mảng 768 chiều vào đây
+                            values: vector768,
                             metadata: {
                                 doc_id: docId,
                                 title: law.title,
@@ -180,7 +208,8 @@ const importData = async () => {
                                 source: law.sourceUrl || ''
                             }
                         });
-                        await new Promise(r => setTimeout(r, 2000));
+                        // Đổi thành 4500ms (4.5 giây) để đảm bảo 1 phút chỉ bắn khoảng 13 requests (an toàn 100%)
+                        await new Promise(r => setTimeout(r, 4500));
                     } catch (e) {
                         if (e.message && e.message.includes('429')) {
                             console.log(`⏳ Quá tải Gemini, nghỉ 60s...`);

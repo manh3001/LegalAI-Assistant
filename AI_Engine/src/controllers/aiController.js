@@ -10,6 +10,9 @@ const ragService = require('../services/ragService');
 const geminiService = require('../services/geminiService');
 
 // hàm này sẽ được gọi trong aiRoutes.js khi có request POST /api/ai/ask
+// ==========================================
+// 1. TÍNH NĂNG CHATBOT (AI CHAT)
+// ==========================================
 exports.ask = async (req, res) => {
     try {
         const { question, message } = req.body;
@@ -19,27 +22,36 @@ exports.ask = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Vui lòng nhập câu hỏi' });
         }
 
-        console.log(` LegAI nhận câu hỏi: "${userQuery}"`);
+        console.log(`\n💬 [CHATBOT] Nhận câu hỏi: "${userQuery}"`);
 
-       let relatedDocs = [];
+        // TRUY XUẤT RAG
+        let relatedDocs = [];
         try {
-            relatedDocs = await ragService.query(userQuery); // Đã tự động gọi hàm query có chứa field "dieu" mới
+            relatedDocs = await ragService.query(userQuery);
         } catch (err) {
-            console.error(' Lỗi RAG (sẽ trả lời bằng kiến thức chung):', err.message);
+            console.error('  Lỗi RAG:', err.message);
+        }
+        
+        // LOG GIÁM SÁT NGUỒN DATA CHO CHATBOT
+        if (relatedDocs && relatedDocs.length > 0) {
+            console.log(` [NGUỒN DATA]: DÙNG PINECONE (Lấy được ${relatedDocs.length} tài liệu luật).`);
+        } else {
+            console.log(` [NGUỒN DATA]: PINECONE TRỐNG -> Đã cấp quyền dùng Google Search Grounding hoặc Tri thức nội tại.`);
         }
 
-        // Gọi sang GeminiService và chuyển giao relatedDocs
+        // GỌI AI
         const answer = await geminiService.generateAnswerWithGemini(userQuery, relatedDocs);
+
         return res.json({
             success: true,
             answer,
             sources: relatedDocs.map(doc => ({
                 title: doc.title,
-                source: doc.sourceUrl || 'Cơ sở dữ liệu nội bộ'
+                source: doc.sourceUrl || 'Cơ sở dữ liệu nội bộ LegAI'
             }))
         });
     } catch (error) {
-        console.error(' Lỗi Chat Controller:', error);
+        console.error('  Lỗi Chat Controller:', error);
         return res.status(500).json({
             success: false,
             message: 'LegAI đang gặp sự cố, vui lòng thử lại sau.',
@@ -265,11 +277,28 @@ exports.analyzeContract = async (req, res) => {
         console.log("--- [DEBUG] DỮ LIỆU SAU MASKING (GỬI ĐI) ---");
         console.log(finalMaskedText.substring(0, 500) + "...");
         console.log("------------------------------------------");
+        // ==========================================
+        // 4. TRUY XUẤT RAG (LẤY LUẬT TỪ PINECONE)
+        // ==========================================
+        let relatedDocs = [];
+        try {
+            // Lấy 1000 ký tự đầu của hợp đồng để quét tìm kiếm luật liên quan
+            const searchQuery = finalMaskedText.substring(0, 1000);
+            relatedDocs = await ragService.query(searchQuery);
+        } catch (err) {
+            console.error(' Lỗi RAG khi thẩm định hợp đồng:', err.message);
+        }
 
+        // LOG GIÁM SÁT NGUỒN DATA Ở TERMINAL
+        if (relatedDocs && relatedDocs.length > 0) {
+            console.log(`🟢 [NGUỒN DATA]: DÙNG PINECONE (Lấy được ${relatedDocs.length} tài liệu luật để rà soát hợp đồng).`);
+        } else {
+            console.log(`🟡 [NGUỒN DATA]: PINECONE TRỐNG -> Chuyển sang Google Search Grounding để đối chiếu. Luật mới sẽ được lấy từ mạng.`);
+        }
         console.log("Dang gui noi dung da bao mat cho Gemini phan tich...");
 
         // 3.Truyền finalMaskedText thay vì maskedText
-        const analysisResult = await geminiService.analyzeContract(finalMaskedText, isUserPreMasked);
+        const analysisResult = await geminiService.analyzeContract(finalMaskedText, relatedDocs, isUserPreMasked);
 
         //  SOI KẾT QUẢ AI TRẢ VỀ:
         console.log("--- [DEBUG] AI PHẢN HỒI (CHỨA MASKED DATA) ---");
@@ -291,10 +320,10 @@ exports.analyzeContract = async (req, res) => {
     }
 };
 
+
 // ==============================================================================
 // 3. API TẠO BIỂU MẪU (FORM GENERATOR)
 // ==============================================================================
-// TRONG: src/controllers/aiController.js
 exports.generateForm = async (req, res) => {
     try {
         const { text, history } = req.body;
@@ -303,24 +332,31 @@ exports.generateForm = async (req, res) => {
             return res.status(400).json({ error: "Thiếu nội dung chat" });
         }
 
-        console.log(" Đang nhận yêu cầu tạo Form từ Frontend:", text);
+        console.log(`\n [FORM GENERATOR] Yêu cầu tạo mẫu: "${text}"`);
 
-        //  GỌI PINECONE (RAG) ĐỂ LẤY LUẬT MỚI NHẤT DỰA VÀO CÂU HỎI USER
+        // TRUY XUẤT RAG
         let relatedDocs = [];
         try {
             relatedDocs = await ragService.query(text);
-            console.log(` Đã tìm thấy ${relatedDocs.length} tài liệu luật liên quan để đắp vào Form.`);
         } catch (err) {
-            console.error('Lỗi RAG khi tạo Form:', err.message);
+            console.error('  Lỗi RAG khi tạo Form:', err.message);
         }
-        // Gọi thẳng Service, nhường toàn bộ não bộ (Prompt) cho Service lo
+
+        // LOG GIÁM SÁT NGUỒN DATA CHO FORM
+        if (relatedDocs && relatedDocs.length > 0) {
+            console.log(` [NGUỒN DATA]: DÙNG PINECONE (Đắp ${relatedDocs.length} tài liệu luật vào biểu mẫu).`);
+        } else {
+            console.log(` [NGUỒN DATA]: PINECONE TRỐNG -> Đang gọi Google Search để tìm cấu trúc biểu mẫu chuẩn hành chính.`);
+        }
+
+        // GỌI AI
         const aiData = await geminiService.generateForm(text, history, relatedDocs);
 
-        console.log(" AI đã bóc tách xong, chuẩn bị gửi về Frontend!");
+        console.log(" AI đã bóc tách xong, gửi JSON về Frontend!");
         res.json(aiData);
 
     } catch (error) {
-        console.error(" Lỗi API Generate Form:", error);
+        console.error("  Lỗi API Generate Form:", error);
         res.status(500).json({ error: "Lỗi hệ thống LegAI khi tạo Form" });
     }
 };
@@ -368,15 +404,21 @@ exports.generatePlanning = async (req, res) => {
 
         let relatedDocs = [];
         try {
-            // Lấy nội dung prompt người dùng gõ (hoặc chuỗi text ngắn đầu file) để truy vấn luật hỗ trợ từ Pinecone
             const searchQuery = userPrompt || combinedText.substring(0, 300);
             relatedDocs = await ragService.query(searchQuery.trim());
-            console.log(` [PLANNING RAG] Đã tìm thấy ${relatedDocs.length} tài liệu luật bổ trợ từ Pinecone.`);
         } catch (ragErr) {
-            console.error(' Lỗi hệ thống RAG luồng lập kế hoạch:', ragErr.message);
+            console.error('  Lỗi hệ thống RAG luồng lập kế hoạch:', ragErr.message);
         }
-        // Truyền finalInstructions vào Service
-        const planningResult = await geminiService.generatePlan(combinedText,relatedDocs);
+
+        // LOG GIÁM SÁT NGUỒN DATA CHO PLANNING
+        if (relatedDocs && relatedDocs.length > 0) {
+            console.log(`🟢 [NGUỒN DATA]: DÙNG PINECONE (Lấy ${relatedDocs.length} thủ tục pháp lý đối chiếu).`);
+        } else {
+            console.log(`🟡 [NGUỒN DATA]: PINECONE TRỐNG -> Đang dùng Google Search tra cứu thủ tục trên Cổng DVC/Thư viện pháp luật.`);
+        }
+
+        // GỌI AI VÀ TRUYỀN DATA ĐỒNG BỘ
+        const planningResult = await geminiService.generatePlan(combinedText, relatedDocs);
 
         // . LƯU VÀO SQL SERVER 
         try {
