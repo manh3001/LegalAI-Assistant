@@ -126,95 +126,95 @@ export default function FeedbackPage() {
 
                     <div className="p-8 space-y-6">
                         <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-zinc-500 uppercase">Họ và tên *</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="Nhập tên của bạn"
-                                    className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 text-sm placeholder-zinc-400 transition-all"
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-zinc-500 uppercase">Họ và tên *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="Nhập tên của bạn"
+                                        className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 text-sm placeholder-zinc-400 transition-all"
                                         value={formData.name}
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                />
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-zinc-500 uppercase">Email *</label>
+                                    <input
+                                        type="email"
+                                        required
+                                        placeholder="email@example.com"
+                                        className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 text-sm placeholder-zinc-400 transition-all"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-zinc-500 uppercase">Loại phản hồi *</label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {feedbackTypes.map((item) => (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, type: item.id })}
+                                            className={`flex items-center gap-2 justify-center py-2.5 border rounded-xl transition-all ${formData.type === item.id
+                                                ? "border-[#B8985D] bg-[#B8985D]/10 text-[#8E6D45] font-bold shadow-sm"
+                                                : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"
+                                                }`}
+                                        >
+                                            <item.icon className="w-4 h-4" />
+                                            <span className="text-xs">{item.id}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="py-2 border-y border-zinc-100 text-center">
+                                <label className="text-xs font-bold text-zinc-500 uppercase block mb-2">Mức độ hài lòng</label>
+                                <div className="flex justify-center gap-2">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <button
+                                            key={star}
+                                            type="button"
+                                            className="transition-transform active:scale-90"
+                                            onClick={() => setFormData({ ...formData, rating: star })}
+                                        >
+                                            {formData.rating >= star
+                                                ? <StarSolid className="w-8 h-8 text-yellow-400" />
+                                                : <StarOutline className="w-8 h-8 text-zinc-300" />
+                                            }
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-zinc-500 uppercase">Email *</label>
-                                <input
-                                    type="email"
+                                <label className="text-xs font-bold text-zinc-500 uppercase">Nội dung chi tiết *</label>
+                                <textarea
                                     required
-                                    placeholder="email@example.com"
-                                    className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 text-sm placeholder-zinc-400 transition-all"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                />
+                                    rows="4"
+                                    placeholder="Chia sẻ ý kiến hoặc báo lỗi tại đây..."
+                                    className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 text-sm placeholder-zinc-400 transition-all resize-none"
+                                    value={formData.content}
+                                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                ></textarea>
                             </div>
-                        </div>
 
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-zinc-500 uppercase">Loại phản hồi *</label>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                {feedbackTypes.map((item) => (
-                                    <button
-                                        key={item.id}
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, type: item.id })}
-                                        className={`flex items-center gap-2 justify-center py-2.5 border rounded-xl transition-all ${formData.type === item.id
-                                            ? "border-[#B8985D] bg-[#B8985D]/10 text-[#8E6D45] font-bold shadow-sm"
-                                            : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"
-                                            }`}
-                                    >
-                                        <item.icon className="w-4 h-4" />
-                                        <span className="text-xs">{item.id}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="py-2 border-y border-zinc-100 text-center">
-                            <label className="text-xs font-bold text-zinc-500 uppercase block mb-2">Mức độ hài lòng</label>
-                            <div className="flex justify-center gap-2">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                    <button
-                                        key={star}
-                                        type="button"
-                                        className="transition-transform active:scale-90"
-                                        onClick={() => setFormData({ ...formData, rating: star })}
-                                    >
-                                        {formData.rating >= star
-                                            ? <StarSolid className="w-8 h-8 text-yellow-400" />
-                                            : <StarOutline className="w-8 h-8 text-zinc-300" />
-                                        }
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-zinc-500 uppercase">Nội dung chi tiết *</label>
-                            <textarea
-                                required
-                                rows="4"
-                                placeholder="Chia sẻ ý kiến hoặc báo lỗi tại đây..."
-                                className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 text-sm placeholder-zinc-400 transition-all resize-none"
-                                value={formData.content}
-                                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                            ></textarea>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full bg-gradient-to-r from-[#B8985D] to-[#8E6D45] text-white py-3.5 rounded-xl font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-[1.01] hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <PaperAirplaneIcon className="w-4 h-4 -rotate-45" />
-                            {isLoading ? 'Đang gửi...' : 'Gửi phản hồi'}
-                        </button>
-                    </form>
+                            <button
+                                type="submit"
+                                disabled={isLoading}
+                                className="w-full bg-gradient-to-r from-[#B8985D] to-[#8E6D45] text-white py-3.5 rounded-xl font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-[1.01] hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <PaperAirplaneIcon className="w-4 h-4 -rotate-45" />
+                                {isLoading ? 'Đang gửi...' : 'Gửi phản hồi'}
+                            </button>
+                        </form>
+                    </div>
                 </div>
-            </div>
-        </main>
-    </div>
+            </main>
+        </div>
     );
 }

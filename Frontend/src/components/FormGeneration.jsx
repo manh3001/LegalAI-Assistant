@@ -165,10 +165,17 @@ export default function FormGeneration() {
 
             setCurrentTemplate(aiData?.template_type ?? 'none');
 
+          
+           // =============================================================================
+            //  KHỐI setFormData 
+            // =============================================================================
             setFormData(prev => {
                 const cleanText = (str) => {
                     if (!str) return '';
-                    return str.normalize('NFC').replace(/\[\d+\]|\[\s*\]/g, '').trim();
+                    return str.normalize('NFC')
+                              .replace(/\[\d+\]|\[\s*\]/g, '')
+                              .replace(/;;+/g, ';') // Khử sạch lỗi trùng lặp dấu chấm phẩy từ AI
+                              .trim();
                 };
 
                 const sanitizedSections = (aiData.extracted_data?.sections || []).map(section => ({
@@ -176,22 +183,42 @@ export default function FormGeneration() {
                     content: cleanText(section.content)
                 }));
 
+                // Khôi phục bộ bóc tách ID thích ứng
+                let idA = '';
+                if (aiData.extracted_data?.benA_mst && aiData.extracted_data?.benA_mst !== 'N/A') idA = aiData.extracted_data.benA_mst;
+                else if (aiData.extracted_data?.benA_cccd && aiData.extracted_data?.benA_cccd !== 'N/A') idA = aiData.extracted_data.benA_cccd;
+                else idA = aiData.extracted_data?.benA_id || '';
+
+                let idB = '';
+                if (aiData.extracted_data?.benB_mst && aiData.extracted_data?.benB_mst !== 'N/A') idB = aiData.extracted_data.benB_mst;
+                else if (aiData.extracted_data?.benB_cccd && aiData.extracted_data?.benB_cccd !== 'N/A') idB = aiData.extracted_data.benB_cccd;
+                else idB = aiData.extracted_data?.benB_id || '';
+
                 return {
                     ...prev,
                     ten_hop_dong: cleanText(aiData.extracted_data?.ten_hop_dong || aiData.ten_hop_dong || prev.ten_hop_dong),
                     benA_role: cleanText(aiData.extracted_data?.benA_role || 'BÊN A'),
                     benB_role: cleanText(aiData.extracted_data?.benB_role || 'BÊN B'),
                     can_cu_luat: (aiData.extracted_data?.can_cu_luat || []).map(luat => cleanText(luat)),
+                    
+                    // Đồng bộ trục thời gian phẳng lỳ lên UI
+                    ngay: cleanText(aiData.extracted_data?.ngay_ky || aiData.extracted_data?.ngay || ''),
+                    thang: cleanText(aiData.extracted_data?.thang_ky || aiData.extracted_data?.thang || ''),
+                    nam: cleanText(aiData.extracted_data?.nam_ky || aiData.extracted_data?.nam || ''),
+                    tai: cleanText(aiData.extracted_data?.dia_diem_ky || aiData.extracted_data?.dia_diem || aiData.extracted_data?.tai || ''),
+
                     benA_name: cleanText(aiData.extracted_data?.benA_name || ''),
-                    benA_id: cleanText(aiData.extracted_data?.benA_id || ''),
+                    benA_id: cleanText(idA), 
                     benA_address: cleanText(aiData.extracted_data?.benA_address || ''),
                     benA_phone: cleanText(aiData.extracted_data?.benA_phone || ''),
                     benA_rep: cleanText(aiData.extracted_data?.benA_rep || ''),
+                    
                     benB_name: cleanText(aiData.extracted_data?.benB_name || ''),
-                    benB_id: cleanText(aiData.extracted_data?.benB_id || ''),
+                    benB_id: cleanText(idB), 
                     benB_address: cleanText(aiData.extracted_data?.benB_address || ''),
                     benB_phone: cleanText(aiData.extracted_data?.benB_phone || ''),
                     benB_rep: cleanText(aiData.extracted_data?.benB_rep || ''),
+                    
                     sections: sanitizedSections
                 };
             });
@@ -203,7 +230,6 @@ export default function FormGeneration() {
             setIsTyping(false);
         }
     };
-
     // 4. HÀM LƯU VÀO DATABASE SQL SERVER
     const handleSaveToHistory = async () => {
         if (currentTemplate === 'none') {
@@ -561,14 +587,14 @@ export default function FormGeneration() {
 
                                 {/* MỤC THỜI GIAN ĐỊA ĐIỂM: CHO PHÉP AI ĐIỀN + USER GÕ TAY TRỰC TIẾP CHUẨN ĐƯỜNG CHẤM */}
                                 <div className="w-full mb-4 italic text-[14px] text-gray-800" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                                    <div className="flex flex-wrap items-center gap-x-1 gap-y-1 leading-relaxed" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                                    <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5 leading-relaxed w-full" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                                         <span>Hôm nay, ngày</span>
                                         <input
                                             type="text"
                                             value={formData.ngay || ''}
                                             onChange={(e) => handleFormChange('ngay', e.target.value)}
                                             placeholder="........."
-                                            className="w-14 bg-transparent border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 p-0 text-center focus:outline-none focus:ring-0 font-medium italic text-[14px] focus:border-[#B8985D]"
+                                            className="w-12 bg-transparent border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 p-0 text-center focus:outline-none focus:ring-0 font-medium italic text-[14px] focus:border-[#B8985D]"
                                             style={{ fontFamily: '"Times New Roman", Times, serif' }}
                                         />
                                         <span>tháng</span>
@@ -577,7 +603,7 @@ export default function FormGeneration() {
                                             value={formData.thang || ''}
                                             onChange={(e) => handleFormChange('thang', e.target.value)}
                                             placeholder="........."
-                                            className="w-14 bg-transparent border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 p-0 text-center focus:outline-none focus:ring-0 font-medium italic text-[14px] focus:border-[#B8985D]"
+                                            className="w-12 bg-transparent border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 p-0 text-center focus:outline-none focus:ring-0 font-medium italic text-[14px] focus:border-[#B8985D]"
                                             style={{ fontFamily: '"Times New Roman", Times, serif' }}
                                         />
                                         <span>năm</span>
@@ -590,14 +616,27 @@ export default function FormGeneration() {
                                             style={{ fontFamily: '"Times New Roman", Times, serif' }}
                                         />
                                         <span>, tại</span>
-                                        <input
-                                            type="text"
-                                            value={formData.tai || ''}
-                                            onChange={(e) => handleFormChange('tai', e.target.value)}
-                                            placeholder="............................................................................................................................................"
-                                            className="flex-1 min-w-[200px] bg-transparent border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 p-0 focus:outline-none focus:ring-0 font-medium italic text-[14px] focus:border-[#B8985D] pb-0.5"
-                                            style={{ fontFamily: '"Times New Roman", Times, serif' }}
-                                        />
+                                        
+                                        {/* PHẪU THUẬT CHUYỂN SANG TEXTAREA TỰ ĐỘNG XUỐNG DÒNG THEO LAYOUT VĂN BẢN */}
+                                        <div className="flex-1 min-w-[250px]">
+                                            <textarea
+                                                value={formData.tai || ''}
+                                                onChange={(e) => handleFormChange('tai', e.target.value)}
+                                                placeholder="............................................................................................................................................"
+                                                rows={1}
+                                                className="w-full bg-transparent p-0 focus:outline-none focus:ring-0 font-medium italic text-[14px] text-gray-900 resize-none overflow-hidden block break-words whitespace-pre-wrap border-t-0 border-l-0 border-r-0 border-b border-dotted border-zinc-400 focus:border-[#B8985D] pb-0.5"
+                                                style={{ 
+                                                    fontFamily: '"Times New Roman", Times, serif',
+                                                    minHeight: '22px',
+                                                    lineHeight: '1.5'
+                                                }}
+                                                onInput={(e) => {
+                                                    // Ma trận tính toán chiều cao động theo text
+                                                    e.target.style.height = 'auto';
+                                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                                }}
+                                            />
+                                        </div>
                                     </div>
                                     <p className="mt-2 font-semibold not-italic text-gray-900" style={{ fontFamily: '"Times New Roman", Times, serif' }}>- Chúng tôi gồm có các bên dưới đây:</p>
                                 </div>

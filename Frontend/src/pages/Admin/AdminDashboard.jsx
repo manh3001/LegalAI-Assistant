@@ -409,7 +409,7 @@ export default function AdminDashboard() {
 
                   <PipelineStep
                     icon={Database}
-                    label="Phân tích SSMS"
+                    label="DỒNG BỘ SSMS"
                     status={stepOrder < 2 ? 'pending' : stepOrder === 2 ? 'active' : 'complete'}
                     active={stepOrder === 2}
                   />

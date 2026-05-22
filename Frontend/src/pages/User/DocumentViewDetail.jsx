@@ -5,6 +5,133 @@ import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+
+// =============================================================================
+// BỘ PARSER VĂN BẢN PHÁP LUẬT V5: PHÂN CẤP THỤT LỀ + KHỬ TIÊU ĐỀ ĐỘNG THEO AGENCY
+// =============================================================================
+const parseLegalContentToHTML = (content, agency = "") => {
+  if (!content) return null;
+
+  const lines = content.split('\n');
+
+  // Cờ trạng thái kiểm soát nội dung cốt lõi
+  let isMainContentStarted = false;
+
+  // Chuẩn hóa chuỗi Agency viết hoa để phục vụ việc lọc động trùng tên tỉnh/cơ quan
+  const cleanAgencyUpper = agency ? String(agency).trim().toUpperCase() : "";
+
+  return lines.map((line, index) => {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) return <div key={index} className="h-3" />;
+
+    const upperLine = trimmedLine.toUpperCase();
+
+    // 🎯 CHỐT CHẶN PHÁT HIỆN BẮT ĐẦU NỘI DUNG CHÍNH
+    if (
+      /^CĂN CỨ/i.test(upperLine) ||
+      /^QUYẾT ĐỊNH:/i.test(upperLine) ||
+      /^LUẬT NÀY BAN HÀNH/i.test(upperLine) ||
+      trimmedLine.startsWith("Căn cứ") ||
+      trimmedLine.startsWith("Quyết định") ||
+      trimmedLine.startsWith("Điều 1")
+    ) {
+      isMainContentStarted = true;
+    }
+
+    // 🔥 VAN LỌC V5: ĐỘNG HÓA HOÀN TOÀN DỌN RÁC ĐẦU TỆP THEO AGENCY
+    if (!isMainContentStarted) {
+      // A. KIỂM TRA ĐIỀU KIỆN LỌC ĐỘNG THEO TÊN TỈNH/CƠ QUAN (AGENCY) TỪ SQL SERVER ĐẨY LÊN
+      let isAgencyNoise = false;
+      if (cleanAgencyUpper) {
+        // Nếu dòng hiện tại chứa cụm từ cơ quan ban hành (Ví dụ: "ỦY BAN NHÂN DÂN TỈNH THANH HÓA")
+        if (upperLine.includes(cleanAgencyUpper)) {
+          isAgencyNoise = true;
+        }
+
+        // Băm nhỏ chữ trong agency ra (Ví dụ: "UBND Tỉnh Thanh Hóa" -> "THANH HÓA") để quét mảnh thừa dính dấu gạch
+        const agencyWords = cleanAgencyUpper.split(/\s+/);
+        const geoName = agencyWords.filter(word => !["UBND", "ỦY", "BAN", "NHÂN", "DÂN", "TỈNH", "THÀNH", "PHỐ", "BỘ", "SỞ"].includes(word)).join(" ");
+        if (geoName && geoName.length > 2 && upperLine.includes(geoName)) {
+          isAgencyNoise = true;
+        }
+      }
+
+      // B. KÍCH HOẠT QUY TRÌNH TIÊU DIỆT DÒNG NHIỄU TIÊU ĐỀ
+      if (
+        isAgencyNoise ||
+        // Khử trùng Quốc hiệu, Tiêu ngữ mẫu và các mảnh rách dòng bừa bãi
+        upperLine.includes("CỘNG HÒA XÃ HỘI") ||
+        upperLine.includes("CHỦ NGHĨA VIỆT NAM") ||
+        upperLine.includes("ĐỘC LẬP - TỰ DO") ||
+        upperLine.includes("ĐỘC LẬP – TỰ DO") ||
+        upperLine.includes("HẠNH PHÚC") ||
+        upperLine.includes("QUỐC HỘI") ||
+        upperLine.includes("ỦY BAN NHÂN DÂN") ||
+        upperLine.includes("UBND") ||
+        upperLine.includes("CHỦ TỊCH") ||
+
+        // Khử trùng số hiệu hành chính và chuỗi ngày tháng rách lọt
+        /^SỐ:\s+/i.test(trimmedLine) ||
+        /ngày\s+\d+\s+tháng\s+\d+\s+năm/i.test(trimmedLine) ||
+        /tháng\s+\d+\s+năm\s+\d+/i.test(trimmedLine) ||
+
+        // Quét sạch tất cả các kiểu phân tách rác vớ vẩn dưới dạng đường kẻ
+        /^-+$/i.test(trimmedLine) ||
+        /^_+$/i.test(trimmedLine) ||
+        /^\.+$/i.test(trimmedLine) ||
+        /^[-\s_]{3,}$/i.test(trimmedLine)
+      ) {
+        return null; // Dọn sạch khỏi cấu trúc hiển thị
+      }
+    }
+
+    // =========================================================================
+    // HỆ THỐNG PHÂN CẤP THỤT LỀ CHUẨN QUỐC GIA VBPL
+    // =========================================================================
+    // 1. Định dạng cấu trúc CHƯƠNG / MỤC -> Căn giữa, in đậm
+    if (/^(Chương|Mục)\s+[IVXLCDM\d]+/i.test(trimmedLine) || /^[A-ZỨỜỞÁÀẠẢÃÝỲỴỶỸÉÈẸẺẼÓÒỌỎÕÚÙỤỦŨÍÌỊỈĨĐ\s./\\-]{12,}$/.test(trimmedLine)) {
+      return (
+        <div key={index} className="text-center font-bold text-gray-900 text-[15.5px] my-5 uppercase tracking-wide leading-snug">
+          {trimmedLine}
+        </div>
+      );
+    }
+
+    // 2. Định dạng cấu trúc ĐIỀU -> In đậm tiêu đề điều khoản, sát lề trái
+    if (/^Điều\s+\d+/i.test(trimmedLine)) {
+      return (
+        <div key={index} className="font-bold text-zinc-950 text-[15px] mt-5 mb-2 text-left tracking-tight">
+          {trimmedLine}
+        </div>
+      );
+    }
+
+    // 3. Định dạng cấu trúc KHOẢN -> Thụt lề cấp 1
+    if (/^\d+\.\s+/.test(trimmedLine)) {
+      return (
+        <div key={index} className="pl-6 text-[14.5px] text-gray-800 leading-relaxed text-justify mb-2 font-medium">
+          {trimmedLine}
+        </div>
+      );
+    }
+
+    // 4. Định dạng cấu trúc ĐIỂM -> Thụt lề cấp 2
+    if (/^[a-z]\)\s+/.test(trimmedLine)) {
+      return (
+        <div key={index} className="pl-12 text-[14.5px] text-gray-700 leading-relaxed text-justify mb-1.5 font-normal italic">
+          {trimmedLine}
+        </div>
+      );
+    }
+
+    // 5. Các dòng văn xuôi diễn giải thông thường
+    return (
+      <div key={index} className="text-[14.5px] text-gray-800 leading-relaxed text-justify mb-2 pl-2">
+        {trimmedLine}
+      </div>
+    );
+  });
+};
 export default function DocumentViewDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -201,55 +328,10 @@ export default function DocumentViewDetail() {
 
           {/*  hiển thị nội dung văn bản */}
           <div className="law-content-display">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                h1: ({ node, ...props }) => <h1 className="text-center font-bold text-[18px] uppercase mt-10 mb-4" {...props} />,
-                h2: ({ node, ...props }) => <h2 className="text-center font-bold text-[17.5px] mt-8 mb-4 uppercase" {...props} />,
-                p: ({ node, ...props }) => <p className="indent-8 text-justify leading-[1.85] mb-4 text-[#222] text-[16px]" {...props} />,
-
-                table: ({ node, ...props }) => {
-                  const isNoiNhan = JSON.stringify(node).includes("Nơi nhận");
-                  return (
-                    <div className="overflow-x-auto my-8">
-                      <table
-                        className={`w-full border-collapse ${isNoiNhan ? 'border-none' : 'border border-gray-400'}`}
-                        style={{ border: isNoiNhan ? 'none' : '1px solid #9ca3af' }}
-                        {...props}
-                      />
-                    </div>
-                  );
-                },
-                // Cập nhật trong ReactMarkdown components
-                td: ({ node, ...props }) => {
-                  const contentStr = JSON.stringify(node);
-                  const isNoiNhanCell = contentStr.includes("Nơi nhận") || contentStr.includes("NL");
-
-                  // Logic: Nếu là ô bên phải (không chứa chữ "Nơi nhận") trong bảng cấu trúc cuối trang, thì canh giữa/phải cho Chữ ký
-                  const isSignatureCell = isNoiNhanCell && !contentStr.includes("Nơi nhận");
-
-                  return (
-                    <td
-                      className={`p-2 ${isNoiNhanCell ? 'border-none' : 'border border-gray-400'}`}
-                      style={{
-                        verticalAlign: 'top',
-                        border: isNoiNhanCell ? 'none' : '1px solid #9ca3af',
-                        textAlign: isSignatureCell ? 'center' : 'left', // Chữ ký căn giữa trong cột phải
-                        paddingLeft: isSignatureCell ? '50px' : '8px',  // Đẩy khối chữ ký sang phải trang giấy
-
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {React.Children.map(props.children, child => renderTdChild(child))}
-                    </td>
-                  );
-                },
-                th: ({ node, ...props }) => <th className="border border-gray-400 p-2 bg-gray-50 font-bold" {...props} />,
-              }}
-            >
-              {getCleanContent(doc.Content || "")}
-            </ReactMarkdown>
+            {/* BỘ PARSER PHÂN CẤP CHUẨN VBPL */}
+            <div className="mt-6 flex-1 font-sans antialiased space-y-2.5 text-left w-full">
+              {parseLegalContentToHTML(doc?.Content, doc?.Agency)}
+            </div>
           </div>
 
           <footer className="mt-20 pt-8 border-t border-gray-200 flex justify-between items-center text-[10px] text-gray-500 font-mono mt-auto italic">

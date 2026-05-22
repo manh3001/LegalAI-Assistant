@@ -39,6 +39,78 @@ const getCleanContent = (content) => {
     return content.trim();
 };
 
+// =============================================================================
+// BỘ PARSER VĂN BẢN PHÁP LUẬT V2: PHÂN CẤP THỤT LỀ + KHỬ TRÙNG TIÊU ĐỀ QUỐC HIỆU
+// =============================================================================
+const parseLegalContentToHTML = (content) => {
+    if (!content) return null;
+
+    const lines = content.split('\n');
+
+    return lines.map((line, index) => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) return <div key={index} className="h-3" />;
+
+        // 🔥 CHỐT CHẶN KHỬ TRÙNG: Bỏ qua các dòng tiêu đề hành chính đã hiển thị ở Header A4
+        const upperLine = trimmedLine.toUpperCase();
+        if (
+            upperLine === "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM" ||
+            upperLine === "ĐỘC LẬP – TỰ DO – HẠNH PHÚC" ||
+            upperLine === "ĐỘC LẬP - TỰ DO - HẠNH PHÚC" ||
+            upperLine === "QUỐC HỘI" ||
+            /^SỐ:\s+\d+/i.test(trimmedLine) ||
+            /Hà Nội, ngày\s+\d+/i.test(trimmedLine) ||
+            /^-------$/i.test(trimmedLine) ||
+            /^______+$/i.test(trimmedLine)
+        ) {
+            return null; // Trả về null để React tự động loại bỏ dòng này, không render lên giao diện nữa
+        }
+
+        // 1. Định dạng cấu trúc CHƯƠNG / MỤC -> Căn giữa, in đậm nổi bật
+        if (/^(Chương|Mục)\s+[IVXLCDM\d]+/i.test(trimmedLine) || /^[A-ZỨỜỞÁÀẠẢÃÝỲỴỶỸÉÈẸẺẼÓÒỌỎÕÚÙỤỦŨÍÌỊỈĨĐ\s]{10,}$/.test(trimmedLine)) {
+            return (
+                <div key={index} className="text-center font-bold text-gray-900 text-[15.5px] my-5 uppercase tracking-wide">
+                    {trimmedLine}
+                </div>
+            );
+        }
+
+        // 2. Định dạng cấu trúc ĐIỀU -> In đậm tiêu đề điều khoản, sát lề trái
+        if (/^Điều\s+\d+/i.test(trimmedLine)) {
+            return (
+                <div key={index} className="font-bold text-zinc-950 text-[15px] mt-4 mb-2 text-left">
+                    {trimmedLine}
+                </div>
+            );
+        }
+
+        // 3. Định dạng cấu trúc KHOẢN (Ví dụ: 1., 2., 3.) -> Thụt lề cấp 1
+        if (/^\d+\.\s+/.test(trimmedLine)) {
+            return (
+                <div key={index} className="pl-6 text-[14.5px] text-gray-800 leading-relaxed text-justify mb-1.5 font-medium">
+                    {trimmedLine}
+                </div>
+            );
+        }
+
+        // 4. Định dạng cấu trúc ĐIỂM (Ví dụ: a), b), c)) -> Thụt lề cấp 2
+        if (/^[a-z]\)\s+/.test(trimmedLine)) {
+            return (
+                <div key={index} className="pl-12 text-[14.5px] text-gray-700 leading-relaxed text-justify mb-1 font-normal italic">
+                    {trimmedLine}
+                </div>
+            );
+        }
+
+        // 5. Các dòng văn xuôi thông thường
+        return (
+            <div key={index} className="text-[14.5px] text-gray-800 leading-relaxed text-justify mb-1.5 pl-2">
+                {trimmedLine}
+            </div>
+        );
+    });
+};
+
 export default function LegalDataManager() {
     const [lawData, setLawData] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -759,20 +831,20 @@ export default function LegalDataManager() {
                     </div>
                 )}
 
-                {/* View Detail Modal */}
+                {/* View Detail Modal - ĐÃ ĐƯỢC HIỆU CHUẨN CHIỀU RỘNG CHUẨN VBPL */}
                 {showChunksModal && (
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[300] p-4 md:p-10">
-                        <div className="bg-[#f8f9fa] w-full max-w-5xl h-full rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-amber-200">
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[300] p-4 md:p-6 animate-fadeIn">
+                        <div className="bg-[#f8f9fa] w-full max-w-6xl h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-amber-200 transform transition-all">
 
                             {/* Toolbar */}
-                            <div className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center">
+                            <div className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center flex-shrink-0">
                                 <div className="flex items-center gap-4">
-                                    <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
+                                    <div className="p-2 bg-amber-50 rounded-xl text-amber-600 shadow-sm border border-amber-100">
                                         <Eye size={20} />
                                     </div>
                                     <div>
-                                        <h2 className="text-sm font-black text-gray-900 uppercase tracking-tighter">Xem trước nội dung hệ thống</h2>
-                                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">Dữ liệu thực tế đang lưu trong SQL & Pinecone</p>
+                                        <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">Xem trước nội dung hệ thống</h2>
+                                        <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Dữ liệu thực tế đang lưu trong SQL & Pinecone</p>
                                     </div>
                                 </div>
                                 <button onClick={() => setShowChunksModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-all text-gray-400 hover:text-gray-900">
@@ -780,46 +852,46 @@ export default function LegalDataManager() {
                                 </button>
                             </div>
 
-                            {/* Content Area */}
-                            <div className="flex-1 overflow-y-auto p-10 flex justify-center custom-scrollbar">
+                            {/* Content Area - Không gian cuộn mượt mà */}
+                            <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center bg-zinc-100/60 custom-scrollbar">
                                 {chunksLoading ? (
-                                    <div className="flex flex-col items-center justify-center h-full text-gray-400 uppercase text-[10px] tracking-[0.2em]">
+                                    <div className="flex flex-col items-center justify-center h-full text-gray-400 uppercase text-[10px] tracking-[0.2em] py-20">
                                         <Loader2 className="animate-spin mb-4 text-amber-600" size={40} />
                                         Đang truy xuất bản gốc...
                                     </div>
                                 ) : (
+                                    /* TỜ GIẤY A4 QUỐC GIA - GIẢI PHÓNG CHIỀU RỘNG RỘNG RÃI */
                                     <div
-                                        className="w-full max-w-[800px] bg-white text-black shadow-2xl flex flex-col p-[1.5cm_1.2cm] border border-gray-100"
+                                        className="w-full max-w-4xl bg-white text-black shadow-xl flex flex-col p-8 md:p-12 border border-gray-200 rounded-2xl h-fit min-h-full"
                                         style={{ fontFamily: "'Times New Roman', Times, serif" }}
                                     >
                                         {/* Header - Cấu trúc chuẩn A4 */}
-                                        <div className="flex justify-between items-start mb-8 text-[13px] border-b pb-6">
+                                        <div className="flex justify-between items-start mb-6 text-[13px] border-b border-gray-150 pb-4 flex-shrink-0">
                                             {/* Cột bên trái: Agency & Document Number */}
                                             <div className="w-1/2 text-center pr-4">
-                                                <p className="font-bold uppercase">{selectedDoc?.Agency?.replace(/TTg|Hà Nội/gi, '').trim() || 'CƠ QUAN BAN HÀNH'}</p>
-                                                <p className="font-bold text-center">-------</p>
-                                                <p className="mt-1 text-[12px]">Số: {selectedDoc?.DocumentNumber || 'N/A'}</p>
+                                                <p className="font-bold uppercase tracking-tight">{selectedDoc?.Agency?.replace(/TTg|Hà Nội/gi, '').trim() || 'CƠ QUAN BAN HÀNH'}</p>
+                                                <p className="font-bold text-center leading-none my-0.5">-------</p>
+                                                <p className="text-[12px] font-medium text-gray-600">Số: {selectedDoc?.DocumentNumber || 'N/A'}</p>
                                             </div>
 
                                             {/* Cột bên phải: Quốc hiệu & Ngày tháng */}
                                             <div className="w-1/2 text-center pl-4">
-                                                <p className="font-bold uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-                                                <p className="font-bold">Độc lập - Tự do - Hạnh phúc</p>
+                                                <p className="font-bold uppercase tracking-tight">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                                                <p className="font-bold tracking-wide">Độc lập - Tự do - Hạnh phúc</p>
                                                 <div className="w-24 h-[1px] bg-black mx-auto mt-1"></div>
-                                                <p className="text-[11px] mt-2">{selectedDoc?.IssueDateString?.replace(/^TTg/i, '').trim() || ''}</p>
+                                                <p className="text-[11px] font-medium text-gray-600 mt-2">{selectedDoc?.IssueDateString?.replace(/^TTg/i, '').trim() || ''}</p>
                                             </div>
                                         </div>
 
-                                        {/* Tiêu đề */}
-                                        <div className="text-center my-4">
-                                            <h3 className="text-[16px] font-bold uppercase leading-tight">{selectedDoc?.Title}</h3>
+                                        {/* Tiêu đề văn bản luật mới  */}
+                                        <div className="text-center my-6 px-6 flex-shrink-0">
+                                            <h3 className="text-[16px] font-bold uppercase leading-snug text-gray-900 max-w-3xl mx-auto" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
+                                                {selectedDoc?.Title}
+                                            </h3>
                                         </div>
-
-                                        {/* Nội dung chính */}
-                                        <div className="law-content-preview text-justify leading-relaxed text-[15px] space-y-2">
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                {getCleanContent(selectedDoc?.Content || '').trim()}
-                                            </ReactMarkdown>
+                                        {/*  VÙNG ĐỌC LUẬT HIỂN THỊ PHÂN CẤP CHUẨN ĐÉT VBPL  */}
+                                        <div className="mt-4 flex-1 font-sans antialiased space-y-2.5 text-left w-full">
+                                            {parseLegalContentToHTML(selectedDoc?.Content)}
                                         </div>
                                     </div>
                                 )}

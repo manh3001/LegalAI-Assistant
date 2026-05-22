@@ -97,21 +97,44 @@ export default function ContractAnalysis() {
         try {
             const token = localStorage.getItem("accessToken");
             const userStr = localStorage.getItem("user");
-            const user = userStr ? JSON.parse(userStr) : { id: 1 }; // Fallback ID 1 nếu chưa login
+            const user = userStr ? JSON.parse(userStr) : { id: 1 };
             const userId = user.id ?? user.Id ?? user.ID;
+
+            // =================================================================
+            // TRÍCH XUẤT CHUỖI VĂN BẢN GỐC AN TOÀN - CHỐNG [object Object]
+            // =================================================================
+            let rawContractString = "";
+            
+            if (result?.original_text) {
+                // Nếu là đối tượng, ép về chuỗi hoặc bốc thuộc tính nội dung
+                rawContractString = typeof result.original_text === 'object' 
+                    ? (result.original_text.text || JSON.stringify(result.original_text))
+                    : String(result.original_text);
+            } else if (result?.originalText) {
+                rawContractString = String(result.originalText);
+            } else if (result?.full_text) {
+                rawContractString = String(result.full_text);
+            }
+
+            // Phòng hờ nếu chuỗi trích xuất ra vẫn dính chữ rác do AI lồng
+            if (rawContractString === "[object Object]" || !rawContractString) {
+                rawContractString = "Nội dung văn bản gốc được bảo mật lưu trữ trong cấu trúc hồ sơ phân tích.";
+            }
 
             const payload = {
                 userId: userId,
                 fileName: file.name,
-                title: `Thẩm định: ${file.name}`, // Tiêu đề để hiện trong tab Pháp lý
-                recordType: 'ANALYSIS',           // Định danh loại hồ sơ
+                title: `Thẩm định: ${file.name}`,
+                recordType: 'ANALYSIS',
                 riskScore: result.risk_score ?? result.riskScore ?? 0,
-                content: JSON.stringify(result) // Lưu toàn bộ JSON kết quả
+                content: JSON.stringify(result), // Chứa JSON kết quả rà soát
+                
+                // 🎯 ĐÃ SỬA THÀNH CÔNG: Đảm bảo dữ liệu đẩy lên SQL Server luôn là STRING THÔ SẠCH SẼ
+                contractText: rawContractString
             };
 
             const res = await axios.post('http://localhost:8000/api/history/save', payload, {
                 headers: {
-                    // Đưa thẻ cho ông bảo vệ check ở đây
                     Authorization: `Bearer ${token}`
                 }
             });
@@ -127,7 +150,6 @@ export default function ContractAnalysis() {
             setIsSaving(false);
         }
     };
-
     // Helper: Badge 
     const getSeverityBadge = (severity) => {
         // Chuyển về chữ thường để tránh lỗi type mismatch (ví dụ AI trả về 'Dangerous' hay 'dangerous' đều dính)

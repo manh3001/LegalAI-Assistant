@@ -9,7 +9,7 @@ import {
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 
 export default function AnalysisDetailView({ record, riskScore }) {
-
+  console.log("====== [DEBUG]  ======", record);
   // 1. (Deep Parse)
   let result = {};
   try {
@@ -41,8 +41,8 @@ export default function AnalysisDetailView({ record, riskScore }) {
     ? result.analysis_report
     : (Array.isArray(result?.risks) ? result.risks : []);
 
-  // Trích xuất văn bản gốc (Nếu có)
-  const originalText = result?.full_text ?? result?.contract_text ?? result?.raw_text ?? result?.text ?? null;
+  // Trích xuất văn bản gốc (Ưu tiên trường phẳng ContractText / cấu trúc fullData)
+  const originalText = record?.ContractText || record?.fullData?.ContractText || record?.contractText || "";
 
   const chartData = [
     { name: "An toàn", value: finalScore, color: "#06b6d4" },
@@ -105,110 +105,119 @@ export default function AnalysisDetailView({ record, riskScore }) {
           <p className="text-sm font-bold mt-2">Hệ thống Trí tuệ Nhân tạo LegAI</p>
         </div>
 
-        {/* 1. Biểu đồ & Tóm tắt tổng quan */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8 border-b border-zinc-100 pb-8 print:border-black/20">
-          <div className="relative w-40 h-40 flex-shrink-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={chartData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
-                  {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className={`text-4xl font-black ${finalScore >= 80 ? 'text-emerald-600' : 'text-red-600'}`}>{finalScore}</span>
-              <span className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Điểm an toàn</span>
+        <div className="grid gap-8 lg:grid-cols-[1.2fr_1.8fr]">
+          <aside className="space-y-6">
+            <div className="sticky top-6 self-start rounded-[2rem] border border-zinc-200 bg-white/90 shadow-[0_20px_60px_rgba(0,0,0,0.05)] p-6">
+             
+              {/* 3. NỘI DUNG VĂN BẢN GỐC */}
+<div className="mt-8 border-t border-zinc-200 pt-8 print:border-black/20 break-inside-avoid text-left">
+  <h3 className="text-sm font-black uppercase tracking-widest text-[#1A2530] mb-4 flex items-center gap-2">
+    <DocumentMagnifyingGlassIcon className="w-5 h-5 text-[#B8985D] stroke-2" />
+    Văn bản gốc hợp đồng
+  </h3>
+  <div className="bg-white p-6 md:p-10 border border-zinc-200 rounded-2xl shadow-sm text-[15px] leading-relaxed font-medium text-zinc-700 bg-zinc-50/30 flex items-center gap-3">
+    <DocumentTextIcon className="w-6 h-6 text-[#B8985D] shrink-0" />
+    <span>
+      {record?.FileName || record?.fileName || record?.fullData?.FileName || "Không có văn bản hợp đồng gốc để hiển thị."}
+    </span>
+  </div>
+</div>
             </div>
-          </div>
+          </aside>
 
-          <div className="flex-grow">
-            <h3 className="text-lg font-bold text-[#1A2530] mb-2 uppercase tracking-wide">Đánh giá tổng quan</h3>
-            <p className="text-zinc-600 text-sm leading-relaxed font-medium print:text-black">{summaryText}</p>
-          </div>
-        </div>
-
-        {/* 2. Chi tiết các rủi ro */}
-        <div className="mb-8">
-          <div className="mb-4 flex items-center gap-2">
-            <ExclamationTriangleIcon className="h-5 w-5 text-orange-500 stroke-2" />
-            <h3 className="text-sm font-black uppercase tracking-widest text-[#1A2530]">
-              Các điều khoản cần chú ý ({riskList.length} rủi ro)
-            </h3>
-          </div>
-
-          {riskList.length > 0 ? (
-            <div className="space-y-5">
-              {riskList.map((risk, index) => {
-                const level = risk.severity ? risk.severity.toLowerCase() : 'advisory';
-                const solutionText = risk.solution || risk.recommendation;
-                const legalText = risk.legal_basis?.law ? `${risk.legal_basis.law} ${risk.legal_basis.article ? `(Điều ${risk.legal_basis.article})` : ''}` : risk.legal_basis || risk.description;
-
-                return (
-                  <div key={`risk-${index}`} className={`border rounded-2xl p-5 bg-white shadow-sm print:border-black/20 print:shadow-none break-inside-avoid ${level === 'dangerous' ? 'border-red-200' : level.includes('high') ? 'border-orange-200' : 'border-amber-200'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-[#1A2530] bg-zinc-100 px-3 py-1.5 rounded-lg border border-zinc-200">
-                        {risk.pillar || "Điều khoản"}
-                      </span>
-                      {getSeverityBadge(risk.severity)}
-                    </div>
-
-                    <div className="flex flex-col gap-4">
-                      <div className="bg-zinc-50 border-l-4 border-zinc-300 text-zinc-600 px-4 py-3 rounded-r-xl text-xs font-mono italic print:bg-white print:border-black/30 print:text-black">
-                        "{risk.clause || "Không trích dẫn được điều khoản"}"
-                      </div>
-
-                      <div className="space-y-2">
-                        <p className="text-zinc-700 text-sm leading-relaxed font-medium print:text-black">
-                          <span className={`${level === 'dangerous' ? 'text-red-600' : level.includes('high') ? 'text-orange-600' : 'text-amber-600'} font-bold flex items-center gap-1.5 mb-1 print:text-black`}>
-                            <ShieldExclamationIcon className="w-4 h-4 stroke-2" /> Phân tích rủi ro:
-                          </span>
-                          {risk.issue}
-                        </p>
-
-                        {legalText && (
-                          <p className="text-xs text-zinc-500 border border-zinc-200 rounded-lg p-3 bg-zinc-50/50 mt-2 print:border-black/20 print:text-black">
-                            ⚖️ <span className="font-bold text-zinc-700 print:text-black">Căn cứ / Mô tả:</span> {legalText}
-                          </p>
-                        )}
-                      </div>
-
-                      {solutionText && (
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mt-1 print:bg-white print:border-black/20">
-                          <p className="text-emerald-800 text-sm leading-relaxed font-medium print:text-black">
-                            <span className="text-emerald-600 font-bold flex items-center gap-1.5 mb-1.5 print:text-black">
-                              <CheckBadgeIcon className="w-4 h-4 stroke-2" /> Đề xuất sửa đổi:
-                            </span>
-                            {solutionText}
-                          </p>
-                        </div>
-                      )}
-                    </div>
+          <main className="space-y-8">
+            <div className="rounded-[2rem] border border-zinc-200 bg-white/90 shadow-[0_20px_60px_rgba(0,0,0,0.05)] p-6">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8 border-b border-zinc-100 pb-8 print:border-black/20">
+                <div className="relative w-40 h-40 flex-shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={chartData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
+                        {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className={`text-4xl font-black ${finalScore >= 80 ? 'text-emerald-600' : 'text-red-600'}`}>{finalScore}</span>
+                    <span className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Điểm an toàn</span>
                   </div>
-                );
-              })}
+                </div>
+
+                <div className="flex-grow">
+                  <h3 className="text-lg font-bold text-[#1A2530] mb-2 uppercase tracking-wide">Đánh giá tổng quan</h3>
+                  <p className="text-zinc-600 text-sm leading-relaxed font-medium print:text-black">{summaryText}</p>
+                </div>
+              </div>
+
+              <div className="mb-8">
+                <div className="mb-4 flex items-center gap-2">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-orange-500 stroke-2" />
+                  <h3 className="text-sm font-black uppercase tracking-widest text-[#1A2530]">
+                    Các điều khoản cần chú ý ({riskList.length} rủi ro)
+                  </h3>
+                </div>
+
+                {riskList.length > 0 ? (
+                  <div className="space-y-5 max-h-[520px] overflow-y-auto custom-scrollbar pr-2">
+                    {riskList.map((risk, index) => {
+                      const level = risk.severity ? risk.severity.toLowerCase() : 'advisory';
+                      const solutionText = risk.solution || risk.recommendation;
+                      const legalText = risk.legal_basis?.law ? `${risk.legal_basis.law} ${risk.legal_basis.article ? `(Điều ${risk.legal_basis.article})` : ''}` : risk.legal_basis || risk.description;
+
+                      return (
+                        <div key={`risk-${index}`} className={`border rounded-2xl p-5 bg-white shadow-sm hover:shadow-md transition-all duration-300 ${level === 'dangerous' ? 'border-red-200 hover:border-red-300' : level.includes('high') ? 'border-orange-200 hover:border-orange-300' : 'border-amber-200 hover:border-amber-300'}`}>
+                          <div className="flex justify-between items-center mb-4">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-[#1A2530] bg-zinc-100 px-3 py-1.5 rounded-lg border border-zinc-200">
+                              {risk.pillar || "Điều khoản"}
+                            </span>
+                            {getSeverityBadge(risk.severity)}
+                          </div>
+
+                          <div className="flex flex-col gap-4">
+                            <div className="bg-zinc-50 border-l-4 border-zinc-300 text-zinc-600 px-4 py-3 rounded-r-xl text-xs font-mono italic">
+                              "{risk.clause || "Không trích dẫn được điều khoản"}"
+                            </div>
+
+                            <div className="space-y-2">
+                              <p className="text-zinc-700 text-sm leading-relaxed font-medium">
+                                <span className={`${level === 'dangerous' ? 'text-red-600' : level.includes('high') ? 'text-orange-600' : 'text-amber-600'} font-bold flex items-center gap-1.5 mb-1`}>
+                                  <ShieldExclamationIcon className="w-4 h-4 stroke-2" /> Phân tích rủi ro:
+                                </span>
+                                {risk.issue}
+                              </p>
+
+                              {legalText && (
+                                <p className="text-xs text-zinc-500 border border-zinc-200 rounded-lg p-3 bg-zinc-50/50 mt-2">
+                                  ⚖️ <span className="font-bold text-zinc-700">Căn cứ / Mô tả:</span> {legalText}
+                                </p>
+                              )}
+                            </div>
+
+                            {solutionText && (
+                              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mt-1">
+                                <p className="text-emerald-800 text-sm leading-relaxed font-medium">
+                                  <span className="text-emerald-600 font-bold flex items-center gap-1.5 mb-1.5">
+                                    <CheckBadgeIcon className="w-4 h-4 stroke-2" /> Đề xuất sửa đổi:
+                                  </span>
+                                  {solutionText}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border-2 border-dashed border-zinc-300 bg-zinc-50 p-8 text-center print:border-solid print:border-black/20">
+                    <CheckBadgeIcon className="h-12 w-12 text-emerald-600 mx-auto mb-3" />
+                    <p className="text-sm font-bold text-zinc-600 print:text-black">Hợp đồng an toàn</p>
+                    <p className="text-xs text-zinc-500 mt-1 print:text-black">Không phát hiện rủi ro nghiêm trọng nào trong nội dung hợp đồng này.</p>
+                  </div>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="rounded-2xl border-2 border-dashed border-zinc-300 bg-zinc-50 p-8 text-center print:border-solid print:border-black/20">
-              <CheckBadgeIcon className="h-12 w-12 text-emerald-600 mx-auto mb-3" />
-              <p className="text-sm font-bold text-zinc-600 print:text-black">Hợp đồng an toàn</p>
-              <p className="text-xs text-zinc-500 mt-1 print:text-black">Không phát hiện rủi ro nghiêm trọng nào trong nội dung hợp đồng này.</p>
-            </div>
-          )}
+          </main>
         </div>
-
-        {/* 3. NỘI DUNG VĂN BẢN GỐC */}
-        {originalText && (
-          <div className="mt-8 border-t border-zinc-200 pt-8 print:border-black/20 break-inside-avoid">
-            <h3 className="text-sm font-black uppercase tracking-widest text-[#1A2530] mb-4 flex items-center gap-2">
-              <DocumentMagnifyingGlassIcon className="w-5 h-5 text-[#B8985D] stroke-2" />
-              Toàn văn hợp đồng đã phân tích
-            </h3>
-            <div className="bg-white p-6 md:p-10 border border-zinc-200 rounded-2xl shadow-sm text-[15px] leading-relaxed whitespace-pre-wrap font-serif text-gray-900 print:border-none print:shadow-none print:p-0">
-              {originalText}
-            </div>
-          </div>
-        )}
-
       </div>
 
       <style>

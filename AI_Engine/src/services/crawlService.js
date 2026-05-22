@@ -15,7 +15,7 @@ if (!process.env.GEMINI_API_KEY || !process.env.PINECONE_API_KEY) {
 
 // Khởi tạo Gemini cho embedding
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
 
 // Khởi tạo Pinecone client
 const pc = new Pinecone({
@@ -289,21 +289,31 @@ const processLegalCrawl = async (urlArray, io) => {
                         (@id, @title, @docNum, @year, N'Còn hiệu lực', @category, @content, @sourceUrl, GETDATE(), @syncSsms, @syncPinecone)
                     `);
 
-                // Embedding & Pinecone 
+                // =============================================================================
+                // KHỐI XỬ LÝ EMBEDDING & PINECONE V2 ĐÃ ĐƯỢC BỌC THÉP - KHỚP LỆNH DASHBOARD 100%
+                // =============================================================================
                 if (io) io.emit('crawl-progress', { ...crawlStatus, current: i + 1, title: 'Đang tạo vector...', step: 'pinecone' });
 
                 const chunkData = smartChunk(content);
-                const index = pc.index(process.env.PINECONE_INDEX_NAME || 'legai-index');
+
+                //  Trỏ chính xác tuyệt đối sang tên Index hiển thị trên Dashboard Cloud
+                const index = pc.index(process.env.PINECONE_INDEX_NAME || 'legai-index-v2');
                 const vectors = [];
 
                 for (let chunkIdx = 0; chunkIdx < chunkData.length; chunkIdx++) {
                     try {
-                        const embedResult = await embedModel.embedContent(chunkData[chunkIdx].text);
+
+                        const embedResult = await embedModel.embedContent({
+                            content: { parts: [{ text: chunkData[chunkIdx].text }] },
+                            outputDimensionality: 768
+                        });
+
                         vectors.push({
                             id: `${documentId}_chunk_${chunkIdx}`,
                             values: Array.from(embedResult.embedding.values).map(Number),
+                            // Chuẩn hóa cấu trúc trường Metadata đồng bộ với bộ lọc RAG hệ thống
                             metadata: {
-                                doc_id: documentId,
+                                id: documentId,
                                 title: title,
                                 doc_type: 'law',
                                 text: chunkData[chunkIdx].text,
@@ -312,10 +322,12 @@ const processLegalCrawl = async (urlArray, io) => {
                                 source: url
                             }
                         });
+
+                        // Nghỉ giãn cách nhẹ chống gậy chặn Rate-Limit 429
                         await new Promise(r => setTimeout(r, 400));
                     } catch (chunkError) {
                         if (chunkError.message && chunkError.message.includes('429')) {
-                            console.log(`Quá tải API nhúng Vector, tạm nghỉ 30 giây...`);
+                            console.log(` Quá tải API nhúng Vector, bộ điều phối LegAI Router tạm nghỉ 30 giây...`);
                             await new Promise(r => setTimeout(r, 30000));
                             chunkIdx--;
                             continue;
@@ -325,6 +337,28 @@ const processLegalCrawl = async (urlArray, io) => {
                     }
                 }
 
+                // ĐƯA VECTOR LÊN MÂY PINECONE V2 THEO TỪNG BATCH TỐI ƯU
+                if (vectors.length > 0) {
+                    try {
+                        console.log(`\n Đang phóng ${vectors.length} vector nhúng lên đám mây legai-index0v2...`);
+
+                        // Chia nhỏ mảng thành từng batch 50 phần tử để đẩy lên mượt mà, chống nghẽn mạng
+                        for (let k = 0; k < vectors.length; k += 50) {
+                            await index.upsert(vectors.slice(k, k + 50));
+                        }
+
+                        // Cập nhật cờ trạng thái đồng bộ thành công vào SQL Server
+                        await pool.request()
+                            .input('SyncId', sql.NVarChar(100), documentId)
+                            .query("UPDATE LegalDocuments SET SyncStatusPinecone = 'success' WHERE Id = @SyncId");
+
+                        console.log(`[PINECONE V2] Hoàn tất đẩy dữ liệu nhúng thành công cho văn bản: ${documentId}`);
+                    } catch (upsertError) {
+                        console.error(` Thất bại khi đẩy vector lên Pinecone Cloud:`, upsertError.message);
+                    }
+                } else {
+                    console.log(` Không có dữ liệu vector hợp lệ để đồng bộ lên Pinecone.`);
+                }
                 if (vectors.length > 0) {
                     for (let j = 0; j < vectors.length; j += 50) {
                         await index.upsert(vectors.slice(j, j + 50));

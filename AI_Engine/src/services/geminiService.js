@@ -464,8 +464,26 @@ Nếu sau khi đã tìm kiếm ở cả RAG và Google mà vẫn không có thô
 async function analyzeContract(contractText, documents = [], isUserPreMasked = false) {
     try {
 
-        const prompt = `
+        const corePrompt = `
 Bạn là AI Pháp lý LegAI, đóng vai Thẩm phán chuyên trách rà soát hợp đồng theo pháp luật Việt Nam.
+
+
+
+────────────────────────────────────────────────────────────
+[ SIÊU CHỈ THỊ TUYỆT ĐỐI KHÔNG ẢO GIÁC CHO AI (STRICT RAG BOUNDARY)]
+────────────────────────────────────────────────────────────
+1. Bạn CHỈ ĐƯỢC PHÉP sử dụng thông tin văn bản nằm TRONG vùng ranh giới "NGỮ CẢNH DỮ LIỆU RAG NỘI BỘ" được cung cấp ở cuối prompt hoặc kết quả tìm kiếm từ Google Search Grounding (nếu hệ thống mở cổng mạng).
+2. NẾU một Điều luật xuất hiện trong dữ liệu RAG nhưng bị khuyết các Khoản/Điểm (Ví dụ: dữ liệu chỉ hiển thị Khoản 1 và Khoản 2, hoàn toàn không nhắc gì tới Khoản 3, Khoản 4), bạn BẮT BUỘC phải coi như các Khoản/Điểm thiếu đó CHƯA TỒN TẠI trên hệ thống RAG nội bộ. 
+3. NGHIÊM CẤM tuyệt đối việc tự ý sử dụng trí nhớ nội tại hoặc kiến thức nền của bạn để tự động bổ sung, điền thêm, hoặc hoàn thiện các Khoản/Điểm/Mức hình phạt bị khuyết từ RAG.
+4. LUÔN ƯU TIÊN TRÍCH DẪN ĐIỀU LUẬT CỤ THỂ (ĐIỀU, KHOẢN, ĐIỂM) TRONG TRƯỜNG 'legal_basis'. NẾU BÁO CÁO PHÂN TÍCH KHÔNG CÓ TRÍCH DẪN CHI TIẾT, HỆ THỐNG SẼ BỊ ĐÁNH GIÁ LÀ LỖI CHẤT LƯỢNG KÉM.
+
+────────────────────────────────────────────────────────────
+[ QUY TẮC TRUY XUẤT KIẾN THỨC PHÁP LÝ KHI RÀ SOÁT]
+────────────────────────────────────────────────────────────
+- [ƯU TIÊN 1: RAG NỘI BỘ]: Nếu dữ liệu RAG chứa đầy đủ nội dung chi tiết số Điều/Khoản để đối chiếu với điều khoản rủi ro trong hợp đồng -> Trích xuất trực tiếp.
+- [ƯU TIÊN 2: GOOGLE SEARCH GROUNDING CÓ GIỚI HẠN]: Trường hợp dữ liệu RAG nội bộ không cung cấp đầy đủ nội dung chi tiết của Điều/Khoản cần đối chiếu, hoặc thông tin bị khuyết -> Bạn BẮT BUỘC phải sử dụng công cụ Tìm kiếm để càn quét văn bản pháp luật gốc.
+   + CHỈ ĐƯỢC PHÉP lấy dữ liệu đáng tin cậy từ 2 nguồn chính thống: "vbpl.vn" hoặc "thuvienphapluat.vn".
+   + Sau khi tìm thấy qua Search, phải điền đầy đủ vào cấu trúc JSON: Tên văn bản, Số hiệu văn bản, nội dung chi tiết của Điều, Khoản, Điểm đó vào trường 'legal_basis'.
 
 ────────────────────────────
 [1. DATA MASKING - ABSOLUTE]
@@ -614,18 +632,76 @@ Sai: "Hợp đồng giữa Phạm Phú ***"
 ────────────────────────────
 """${contractText}"""
 `;
-        // CẤU HÌNH: Trả về JSON (true), bật INTERNET GROUNDING (true) để tìm kiếm bổ sung nếu RAG không đủ dữ liệu, và ưu tiên model Pro nếu có
-        const responseText = await getActiveModel(prompt, true, documents, true, true);
-        const cleanedText = cleanAIJsonString(responseText);
-        const result = JSON.parse(cleanedText);
+        // ────────────────────────────────────────────────────────────
+        // GIAI ĐOẠN 1: GỌI MODEL FLASH CHẠY TẮT SEARCH ĐỂ LẤY KHUNG LỖI THÔ
+        // ────────────────────────────────────────────────────────────
+        console.log(" [PHASE 1]: Quét thô dữ liệu nặng (Ngắt Search để chống lỗi quá tải hạn mức 429)...");
+        const firstResponse = await getActiveModel(corePrompt, true, documents, false, false);
+        const cleanedFirstText = cleanAIJsonString(firstResponse);
+        let finalResult = JSON.parse(cleanedFirstText);
+
+        // ────────────────────────────────────────────────────────────
+        // GIAI ĐOẠN 2: KÍCH HOẠT GOOGLE SEARCH GROUNDING CHO PROMPT SIÊU NHẸ
+        // ────────────────────────────────────────────────────────────
+        if (finalResult.analysis_report && finalResult.analysis_report.length > 0) {
+
+            // Lọc ra danh sách các điều khoản lỗi viết gọn để chuẩn bị bọc gói search
+            const targetRisks = finalResult.analysis_report.map((r, i) =>
+                `[Rủi ro ${i + 1} - Trụ cột: ${r.pillar}]: "${r.clause}". Hiện trạng rủi ro: ${r.issue}`
+            ).join("\n");
+
+            console.log(" [LEG_AI ROUTER]: Hợp đồng dính rủi ro rà soát. Khởi động van Google Search Grounding với Prompt siêu nhẹ...");
+
+            const searchPrompt = `
+Bạn là trợ lý tra cứu luật chuyên nghiệp thuộc hệ thống LegAI HUB. 
+Tôi có danh sách các điều khoản hợp đồng đang dính rủi ro pháp lý tại Việt Nam sau đây:
+${targetRisks}
+
+NHIỆM VỤ CỦA BẠN:
+1. Bật tính năng kết nối mạng Google Search, truy cập trực tiếp vào các trang mạng chính thống chính xác cao như "vbpl.vn" hoặc "thuvienphapluat.vn".
+2. Tra cứu chính xác số hiệu luật, số Điều, Khoản, Điểm và trích xuất nguyên văn dòng nội dung (reference_text) để làm căn cứ pháp lý xử lý các rủi ro trên (Đặc biệt chú ý Luật Thương mại 2005, Bộ luật Dân sự 2015, Luật Hàng không dân dụng và các luật áp dụng trong hợp đồng).
+3. Đóng gói kết quả tìm kiếm trùng khớp theo mảng JSON thứ tự chính xác. Không được chứa chữ "N/A" hay "Tri thức nội tại" tại các trường số Điều/Khoản.
+
+[OUTPUT FORMAT] - Trả về duy nhất mảng JSON cấu trúc sau, không kèm giải thích hay bọc markdown bừa bãi:
+[
+  {
+    "law": "Tên văn bản luật tìm thấy kèm số hiệu văn bản chính xác",
+    "article": "Điều ... Khoản ... Điểm ...",
+    "confidence": "high",
+    "reference_text": "Trích dẫn nguyên văn dòng chữ luật gốc làm bằng chứng đối chiếu"
+  }
+]
+`;
+
+            try {
+                // Phóng prompt siêu nhẹ đi cào mạng bằng model Pro. Khắc chế 100% gậy 429!
+                const searchResponse = await getActiveModel(searchPrompt, true, [], false, true); // forceProModel = true
+                const cleanedSearchText = cleanAIJsonString(searchResponse);
+                const webLegalBasisArray = JSON.parse(cleanedSearchText);
+
+                // Vá dữ liệu bọc thép trực tiếp vào mảng báo cáo rủi ro ban đầu
+                if (Array.isArray(webLegalBasisArray)) {
+                    finalResult.analysis_report.forEach((report, idx) => {
+                        if (webLegalBasisArray[idx]) {
+                            console.log(`🎯 [VÁ DỮ LIỆU SUCCESS]: Đang ép dữ liệu luật mạng vào Trụ cột [${report.pillar}]`);
+                            report.legal_basis = webLegalBasisArray[idx];
+                        }
+                    });
+                }
+            } catch (searchErr) {
+                console.error("⚠️ [GROUNDING FAILOVER]: Cổng Search trực tuyến tạm thời nghẽn hạn mức minute, giữ cấu trúc tri thức nội tại cứu hộ.", searchErr.message);
+            }
+        }
 
         await logUsage('CONTRACT_REVIEW');
-        return result;
+
+        // 🎯 LỖI SỬA ĂN TIỀN: Trả về đúng biến finalResult chứa trọn vẹn dữ liệu đã vá!
+        return finalResult;
 
     } catch (error) {
         console.error("Lỗi phân tích hợp đồng:", error.message);
 
-        // Trả về object chứa đầy đủ các trường của JSON 
+        // Trả về object chứa đầy đủ các trường fallback của JSON khi sập nguồn toàn cục
         return {
             summary: "Lỗi kết nối AI hoặc hết hạn mức.",
             contract_info: { type: "Unknown", laws: [] },
@@ -637,8 +713,8 @@ Sai: "Hợp đồng giữa Phạm Phú ***"
                 {
                     pillar: "Hệ thống (Cơ chế thực thi)",
                     severity: "Dangerous",
-                    clause: "Lỗi API",
-                    issue: "Hệ thống đang quá tải hoặc kết nối bị gián đoạn.",
+                    clause: "Lỗi API hệ thống",
+                    issue: "Hệ thống đang quá tải hoặc kết nối cổng API bị gián đoạn.",
                     void_type: "none",
                     legal_basis: { law: "N/A", article: null, confidence: "low", reference_text: "N/A" },
                     solution: "Lý do: Máy chủ AI không phản hồi. | Đề xuất sửa: 'Vui lòng nhấn F5 hoặc tải lại file hợp đồng sau 30 giây.'"
@@ -676,10 +752,13 @@ BẮT BUỘC sử dụng ký tự xuống dòng (\n) sau mỗi tiểu mục (1.1
    - QUY TẮC GIỮ RAG: NẾU luật trong RAG đã là phiên bản mới nhất, hãy sử dụng NGUYÊN VẸN dữ liệu từ RAG.
    - FALLBACK AN TOÀN: Khi dùng trí nhớ gốc thay thế RAG mà không nhớ chính xác 100% số hiệu văn bản, TUYỆT ĐỐI KHÔNG ĐƯỢC BỊA ĐẶT. Chỉ cần ghi ngắn gọn "Tên Luật + Năm ban hành" (Ví dụ: "Luật Đất đai 2024").
 
-6. QUY TẮC LÀM SẠCH VÀ TẠO KHOẢNG TRỐNG (ANTI-BRACKET RULE - SỐNG CÒN):
+6. QUY TẮC ĐIỀN THÔNG TIN VÀ XỬ LÝ KHOẢNG TRỐNG (ANTI-LAZINESS RULE - SỐNG CÒN):
    - TUYỆT ĐỐI KHÔNG đưa các ký hiệu chú thích, số hiệu mục lục dạng dấu ngoặc vuông như [1], [2], [3]... từ văn bản luật gốc vào nội dung hợp đồng.
    - TUYỆT ĐỐI KHÔNG dùng dấu ngoặc vuông để bọc các khoảng trống cần điền (Ví dụ: CẤM VIẾT "[Địa chỉ cụ thể]", "[Số tiền]", "[Tên công ty]").
    - Mọi chỗ thiếu thông tin cần người dùng điền tay BẮT BUỘC phải dùng chuỗi dấu chấm: "...................."
+   - Bạn BẮT BUỘC phải phân tích kỹ câu hỏi của người dùng để trích xuất: Ngày, tháng, năm ký kết, địa điểm ký kết, thông tin chi tiết của Bên A, Bên B và điền vào đúng các Key tương ứng trong đối tượng JSON "extracted_data" ở bên dưới.
+   - Nếu người dùng ĐÃ CUNG CẤP dữ liệu đầu vào, NGHIÊM CẤM việc bỏ trống hoặc dùng dấu chấm "......" tại các Key phẳng của "extracted_data". 
+   - Trường hợp người dùng yêu cầu làm "mẫu trống/phôi in trắng", bạn mới được phép để trống thông tin cá nhân thành chuỗi rỗng "" hoặc dấu chấm "....................".
 # NGỮ CẢNH TRƯỚC ĐÓ:
 ${historyText}
 
@@ -760,6 +839,7 @@ Dựa trên yêu cầu của người dùng, BẮT BUỘC chọn 1 trong các kh
   + Điều 11: Sự kiện bất khả kháng giải phóng nghĩa vụ.
   + Điều 12: Chấm dứt hợp đồng trước hạn (Điều kiện kích hoạt và nghĩa vụ báo trước ít nhất 30 ngày).
   + Điều 13: Quy trình bàn giao lại nhà và xử lý tài sản còn lại khi thanh lý hợp đồng.
+  
 # NHIỆM VỤ BẮT BUỘC:
 1. Đọc yêu cầu và TỰ ĐỘNG SUY LUẬN loại hợp đồng phù hợp. Chọn 1 trong 4 khung trên. (Nếu không thuộc 4 loại, tự suy luận khung tương tự).
 2. Tự động gán vai trò Bên A và Bên B đúng chuẩn pháp lý.
@@ -773,6 +853,14 @@ TUYỆT ĐỐI không trả lời chung chung (như "Vui lòng kiểm tra lại.
 4. TRƯỜNG HỢP BIỂU MẪU TRẮNG: Nếu yêu cầu "mẫu trống/phôi in", để trống toàn bộ thông tin cá nhân (.....) và không hỏi thêm.
 5. SIÊU CHỈ THỊ SOẠN THẢO (ANTI-LAZINESS & STRUCTURE LOCK): 
    - BẮT BUỘC giữ nguyên cấu trúc tiểu mục (1.1, 1.2...) của Khung đã chọn.
+  - Đối với các nội dung chữ nghĩa pháp lý trong mảng 'sections',
+   tại những vị trí chứa thông tin đặc thù do người dùng cung cấp 
+   (Ví dụ: Số phần trăm phạt vi phạm, số ngày hoàn thành, thời hạn bàn giao, hoặc số tiền cụ thể...),
+    bạn BẮT BUỘC phải viết thông tin đó kèm theo các dấu chấm  phía sau để tạo phôi trực quan.
+    KHÔNG ĐƯỢC tự ý để trống ngày tháng năm hay phần trăm vi phạm ở các tiểu mục con.
+- FORMAT BẮT BUỘC: Hãy chèn chuỗi dấu chấm sát bên dữ liệu. Ví dụ: Nếu phạt 15%, viết là "....15%.....". Nếu thời hạn là 30 ngày, viết là ".....30 ngày.....".
+ Nếu giá trị là 50.000.000 VNĐ, viết là "....50.000.000 VNĐ.....".
+   - Quy tắc này giúp người dùng phân biệt rõ ràng vị trí được điền tự động trên nền phôi văn bản mà không làm thay đổi màu mực đen trang trọng của hợp đồng hành chính.
    - Với MỖI Điều khoản, bạn phải soạn thảo tối thiểu 3-5 tiểu mục con. 
    - Mỗi tiểu mục con phải là văn xuôi pháp lý dài, chặt chẽ (ít nhất 2-3 câu). 
    - Lồng ghép chi tiết các con số, thời hạn, mức phạt cụ thể mà người dùng đã cung cấp vào nội dung văn bản. 
@@ -781,30 +869,54 @@ TUYỆT ĐỐI không trả lời chung chung (như "Vui lòng kiểm tra lại.
     Nếu yêu cầu là dịch vụ công nghệ, phần mềm, hoặc giá trị lớn, bạn phải kích hoạt tư duy pháp lý sâu, 
     soạn thảo văn bản dài kịch trần, chặt chẽ đủ 14-15 điều khoản, 
     không được viết tóm tắt. Nếu yêu cầu là thuê nhà, mua bán nhỏ, hãy giữ văn bản cô đọng từ 7-10 điều để phù hợp với thực tế đời sống.
+
 6. CONTEXT RESET: Nếu đổi loại hợp đồng đột ngột, BẮT BUỘC reset mọi thông tin cá nhân về chuỗi rỗng "".
 
 # YÊU CẦU ĐẦU RA JSON (TUYỆT ĐỐI TUÂN THỦ):
 {
-  "chat_reply": "Câu trả lời báo cáo kết quả và hỏi thêm thông tin thiếu.",
-  "template_type": "Loại hợp đồng (VD: hop_dong_mua_ban, none...)",
+  "chat_reply": "Câu trả lời báo cáo kết quả soạn thảo ngắn gọn cho người dùng.",
+  "template_type": "Loại hợp đồng (Ví dụ: hop_dong_mua_ban, hop_dong_dich_vu, hop_dong_lao_dong, hop_dong_thue_nha)",
   "extracted_data": {
-    "ten_hop_dong": "TÊN HỢP ĐỒNG IN HOA",
-    "benA_role": "VAI TRÒ BÊN A IN HOA",
-    "benB_role": "VAI TRÒ BÊN B IN HOA",
-    "can_cu_luat": ["Danh sách các luật liên quan"],
-    "benA_name": "", "benA_id": "", "benA_address": "", "benA_phone": "", "benA_rep": "",
-    "benB_name": "", "benB_id": "", "benB_address": "", "benB_phone": "", "benB_rep": "",
+    "ten_hop_dong": "TÊN HỢP ĐỒNG IN HOA (Ví dụ: HỢP ĐỒNG CUNG CẤP DỊCH VỤ CÔNG NGHỆ)",
+    "benA_role": "VAI TRÒ PHÁP LÝ BÊN A IN HOA (Ví dụ: BÊN THUÊ DỊCH VỤ / BÊN CHO THUÊ)",
+    "benB_role": "VAI TRÒ PHÁP LÝ BÊN B IN HOA (Ví dụ: BÊN CUNG CẤP DỊCH VỤ / BÊN THUÊ LẠI)",
+    
+    "can_cu_luat": [
+      "QUY TẮC FLEXIBLE CĂN CỨ ĐÍCH DANH (BẮT BUỘC): Bạn phải tự động tra cứu, tùy cơ ứng biến theo loại hợp đồng để đưa ra chuỗi văn bản trích dẫn chính xác số Điều, số Khoản và tên văn bản luật điều tiết trực tiếp giao dịch này. Không ghi tên luật trơ trọi.",
+      "Ví dụ 1 (Dịch vụ/Thương mại): 'Căn cứ Luật Thương mại số 36/2005/QH11 ban hành ngày 14/06/2005 và các văn bản hướng dẫn thi hành;'",
+      "Ví dụ 2 (Dân sự/Thuê nhà): 'Căn cứ các quy định về Hợp đồng thuê tài sản tại Mục 5 Chương XVI Bộ luật Dân sự số 91/2015/QH13;'",
+      "Ví dụ 3 (Lao động): 'Căn cứ Điều 20 và Điều 24 Bộ luật Lao động số 45/2019/QH14 về xác lập quan hệ lao động và hợp đồng thử việc;'"
+    ],
+    
+    "ngay_ky": "Chỉ điền số ngày ký kết lấy từ yêu cầu người dùng (Ví dụ: 22). Tuyệt đối không để trống nếu đã có thông tin",
+    "thang_ky": "Chỉ điền số tháng ký kết lấy từ yêu cầu người dùng (Ví dụ: 05). Tuyệt đối không để trống nếu đã có thông tin",
+    "nam_ky": "Chỉ điền số năm ký kết lấy từ yêu cầu người dùng (Ví dụ: 2026). Tuyệt đối không để trống nếu đã có thông tin",
+    "dia_diem_ky": "Ghi rõ địa chỉ nơi ký kết hợp đồng (Ví dụ: Văn phòng Công ty... hoặc Đà Nẵng)",
+
+    "benA_name": "Tên đầy đủ của tổ chức doanh nghiệp hoặc cá nhân Bên A",
+    "benA_mst": "Mã số thuế của doanh nghiệp Bên A (Nếu là công ty, bắt buộc điền vào đây, còn CCCD ghi 'N/A')",
+    "benA_cccd": "Số Căn cước công dân của Bên A (Nếu là cá nhân, bắt buộc điền vào đây, còn MST ghi 'N/A')",
+    "benA_address": "Địa chỉ trụ sở chính hoặc địa chỉ thường trú của Bên A",
+    "benA_phone": "Số điện thoại liên hệ của Bên A",
+    "benA_rep": "Họ tên và chức vụ người đại diện pháp luật của Bên A (Ví dụ: Ông Phạm Phú Hoàng Duy - Chức vụ: Giám đốc điều hành)",
+
+    "benB_name": "Tên đầy đủ của tổ chức doanh nghiệp hoặc cá nhân Bên B",
+    "benB_mst": "Mã số thuế của doanh nghiệp Bên B (Nếu là công ty, bắt buộc điền vào đây, còn CCCD ghi 'N/A')",
+    "benB_cccd": "Số Căn cước công dân của Bên B (Nếu là cá nhân, bắt buộc điền vào đây, còn MST ghi 'N/A')",
+    "benB_address": "Địa chỉ trụ sở chính hoặc địa chỉ thường trú của Bên B",
+    "benB_phone": "Số điện thoại liên hệ của Bên B",
+    "benB_rep": "Họ tên và chức vụ người đại diện pháp luật của Bên B (Ví dụ: Ông Nguyễn Văn B - Chức vụ: Giám đốc kỹ thuật)",
+
     "sections": [
-  {
-    "title": "Tên Điều (Ví dụ: Điều 1: Đối tượng hợp đồng)",
-    "content": "1.1. Soạn thảo nội dung chi tiết khoản 1 tại đây, tối thiểu 3 câu văn pháp lý \n1.2. Soạn thảo nội dung chi tiết khoản 2 tại đây, tối thiểu 3 câu văn pháp lý \n1.3. Tiếp tục xuống dòng cho các khoản tiếp theo..."
-  }
-]
+      {
+        "title": "Tên Điều (Ví dụ: Điều 11: Điều khoản phạt vi phạm hợp đồng)",
+        "content": "11.1. Nội dung chi tiết khoản 1 của điều này viết bằng văn xuôi dài chặt chẽ... \\\n11.2. Nội dung chi tiết khoản 2 của điều này viết bằng văn xuôi dài chặt chẽ..."
+      }
+    ]
   }
 }
-
 # CẢNH BÁO TỐI THƯỢNG:
-CHỈ trả về JSON thuần túy. KHÔNG chào hỏi rườm rà bên ngoài. Nếu không tuân thủ cấu trúc JSON này, hệ thống sẽ lỗi.
+CHỈ trả về JSON thuần túy. KHÔNG chào hỏi rườm rà bên ngoài. Nếu không tuân thủ cấu trúc JSON này, hệ thống sẽ lỗi.\`;
 `;
 
         const responseText = await getActiveModel(prompt, true, documents, false, false);
