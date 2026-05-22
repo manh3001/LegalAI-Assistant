@@ -352,12 +352,6 @@ export default function AuthPage() {
 
 
 
-                            {mode === "LOGIN" && googleClientId && (
-                                <div className="mb-4">
-                                    <GoogleLoginButton onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
-                                </div>
-                            )}
-
                             <button
                                 type="submit"
                                 disabled={loading}
@@ -369,6 +363,17 @@ export default function AuthPage() {
                                     </span>
                                 ) : currentCopy.submit}
                             </button>
+
+                            {mode === "LOGIN" && googleClientId && (
+                                <div className="mt-6">
+                                    <div className="mb-5 flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-zinc-400">
+                                        <span className="h-px flex-1 bg-zinc-200"></span>
+                                        <span>Hoặc</span>
+                                        <span className="h-px flex-1 bg-zinc-200"></span>
+                                    </div>
+                                    <GoogleLoginButton onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
+                                </div>
+                            )}
                         </form>
 
                         <div className="border-t border-zinc-100 bg-zinc-50/70 px-6 py-5 text-center text-sm font-semibold text-zinc-500 sm:px-8">
