@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "db:export": "py -m mssqlscripter -S MSI\\SQLEXPRESS -d LegalBotDB --schema-and-data -f ./data_export/full_db_sync.sql",
-    "db:sync": "sqlcmd -S MSI\\SQLEXPRESS -d LegalBotDB -E -i ./data_export/full_db_sync.sql"
+    "db:export": "py -m mssqlscripter -S localhost -d LegalBotDB --schema-and-data -f ./data_export/full_db_sync.sql",
+    "db:sync": "sqlcmd -S localhost -d LegalBotDB -E -C -i ./data_export/full_db_sync.sql"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
