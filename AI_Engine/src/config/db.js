@@ -2,15 +2,14 @@
 const sql = require('mssql');
 
 const dbConfig = {
-    user: 'sa',
-    password: '123456',
-    server: 'localhost',
-    port: 1433,
-    database: 'LegalBotDB',
+    user: process.env.DB_USER || 'sa',
+    password: process.env.DB_PASSWORD || '123456',
+    server: process.env.DB_SERVER || 'localhost',
+    port: parseInt(process.env.DB_PORT || '1433'),
+    database: process.env.DB_NAME || 'LegalBotDB',
     options: {
-        encrypt: false,
-        trustServerCertificate: true,
-
+        encrypt: process.env.DB_ENCRYPT === 'true',
+        trustServerCertificate: process.env.DB_TRUST_CERT !== 'false',
     },
     pool: {
         max: 10,
