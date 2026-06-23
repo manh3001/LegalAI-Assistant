@@ -8,6 +8,6 @@ FROM mcr.microsoft.com/mssql/server:2022-latest
 
 USER root
 
-# On each start: ensure the mounted volume is writable, then launch SQL Server
-# as root so it can always access /var/opt/mssql.
-ENTRYPOINT ["/bin/bash", "-c", "chown -R root:root /var/opt/mssql 2>/dev/null || true; exec /opt/mssql/bin/sqlservr"]
+# On each start: recreate the data/log/secrets subdirs that the empty Railway
+# volume hides, make the volume writable, then launch SQL Server as root.
+ENTRYPOINT ["/bin/bash", "-c", "mkdir -p /var/opt/mssql/data /var/opt/mssql/log /var/opt/mssql/secrets && chown -R root:root /var/opt/mssql && chmod -R 0775 /var/opt/mssql; exec /opt/mssql/bin/sqlservr"]
