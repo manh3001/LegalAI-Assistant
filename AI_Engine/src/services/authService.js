@@ -44,8 +44,8 @@ async function createUserFromGoogle({ googleId, email, fullName, avatar }) {
 
   const sqlText = `
     INSERT INTO dbo.Users (GoogleId, Email, FullName, Avatar, AuthProvider, Role, Status, CreatedAt, UpdatedAt)
-    OUTPUT INSERTED.*
     VALUES (@GoogleId, @Email, @FullName, @Avatar, @AuthProvider, @Role, @Status, GETDATE(), GETDATE())
+    RETURNING *
   `;
 
   const result = await request.query(sqlText);

@@ -51,8 +51,8 @@ exports.register = async (req, res) => {
 
     const insertSql = `
       INSERT INTO dbo.Users (Email, Password, FullName, Role, AuthProvider, CreatedAt, UpdatedAt)
-      OUTPUT INSERTED.Id, INSERTED.Email, INSERTED.FullName, INSERTED.Role, INSERTED.AuthProvider
       VALUES (@Email, @Password, @FullName, @Role, @AuthProvider, GETDATE(), GETDATE())
+      RETURNING Id, Email, FullName, Role, AuthProvider
     `;
 
     const result = await request.query(insertSql);

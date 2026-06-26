@@ -27,8 +27,8 @@ exports.saveAnalysis = async (req, res) => {
     // Cập nhật câu lệnh INSERT đầy đủ các cột
     const insertSql = `
       INSERT INTO dbo.ContractHistory (UserId, FileName, Title, RecordType, AnalysisAt, RiskScore, AnalysisJson, CreatedAt)
-      OUTPUT INSERTED.Id, INSERTED.UserId, INSERTED.Title, INSERTED.RecordType, INSERTED.RiskScore, INSERTED.AnalysisAt
       VALUES (@UserId, @FileName, @Title, @RecordType, @AnalysisAt, @RiskScore, @AnalysisJson, SYSUTCDATETIME())
+      RETURNING Id, UserId, Title, RecordType, RiskScore, AnalysisAt
     `;
 
     const result = await request.query(insertSql);
@@ -261,9 +261,9 @@ exports.saveVideoAnalysis = async (req, res) => {
     const insertSql = `
       INSERT INTO dbo.ContractHistory
       (UserId, Title, FilePath, RecordType, RiskScore, AnalysisText, AnalysisJson, CreatedAt, IsFinal)
-      OUTPUT INSERTED.Id, INSERTED.Title, INSERTED.RecordType, INSERTED.CreatedAt
       VALUES
       (@UserId, @Title, @FilePath, @RecordType, @RiskScore, @AnalysisText, @AnalysisJson, @CreatedAt, 1)
+      RETURNING Id, Title, RecordType, CreatedAt
     `;
 
     const result = await request.query(insertSql);
