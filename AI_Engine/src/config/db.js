@@ -1,33 +1,30 @@
-// CHÚ Ý: Dùng thư viện mssql gốc (không dùng msnodesqlv8 nữa)
-const sql = require('mssql');
+const { Pool } = require('pg');
+const { createPool, makeSql } = require('./sqlShim');
 
-const dbConfig = {
-    user: process.env.DB_USER || 'sa',
-    password: process.env.DB_PASSWORD || '123456',
-    server: process.env.DB_SERVER || 'localhost',
-    port: parseInt(process.env.DB_PORT || '1433'),
-    database: process.env.DB_NAME || 'LegalBotDB',
-    options: {
-        encrypt: process.env.DB_ENCRYPT === 'true',
-        trustServerCertificate: process.env.DB_TRUST_CERT !== 'false',
-    },
-    pool: {
-        max: 10,
-        min: 0,
-        idleTimeoutMillis: 300000
-    }
-};
+// Supabase pooler connection. DATABASE_URL example:
+//   postgresql://USER:PASS@HOST:6543/postgres?sslmode=require
+const pgPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-const pool = new sql.ConnectionPool(dbConfig);
-const poolConnect = pool.connect()
-    .then(() => {
-        console.log('========================================');
-        console.log(' Đã  kết nối TCP/IP tới SQL Server!');
-        console.log(' Tài khoản: sa | Cổng: 1433');
-        console.log('========================================');
-    })
-    .catch(err => {
-        console.error(' Lỗi kết nối DB (Cách 2):', err.message);
-    });
+const execute = (text, values) => pgPool.query(text, values);
+
+// node-mssql-compatible exports.
+const sql = makeSql();
+const pool = createPool(execute); // NOT thenable; exposes .request()
+
+// Resolves once a connection is established (preserves `await poolConnect`).
+const poolConnect = pgPool
+  .connect()
+  .then((client) => {
+    client.release();
+    console.log('========================================');
+    console.log(' Connected to PostgreSQL (Supabase)!');
+    console.log('========================================');
+  })
+  .catch((err) => {
+    console.error(' Postgres connection error:', err.message);
+  });
 
 module.exports = { sql, pool, poolConnect };
