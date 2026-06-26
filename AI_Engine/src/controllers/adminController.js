@@ -383,8 +383,8 @@ const createUser = async (req, res) => {
 
         const insertSql = `
             INSERT INTO dbo.Users (FullName, Email, Password, Role, Status, CreatedAt)
-            VALUES (@FullName, @Email, @Password, @Role, @Status, @CreatedAt);
-            SELECT SCOPE_IDENTITY() AS Id;
+            VALUES (@FullName, @Email, @Password, @Role, @Status, @CreatedAt)
+            RETURNING Id
         `;
 
         const insertResult = await insertRequest.query(insertSql);
