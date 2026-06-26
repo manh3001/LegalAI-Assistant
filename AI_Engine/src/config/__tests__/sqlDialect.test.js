@@ -45,3 +45,14 @@ test('DATEADD -> INTERVAL, before GETDATE rule', () => {
   assert.strictEqual(autoTranslateDialect('DATEADD(MONTH, -1, GETDATE())'), "(NOW() + INTERVAL '-1 MONTH')");
   assert.strictEqual(autoTranslateDialect('DATEADD(YEAR, -1, GETDATE())'), "(NOW() + INTERVAL '-1 YEAR')");
 });
+
+test("strips N'' national string prefix", () => {
+  assert.strictEqual(
+    autoTranslateDialect("WHERE Category = N'Chưa phân loại'"),
+    "WHERE Category = 'Chưa phân loại'"
+  );
+  assert.strictEqual(
+    autoTranslateDialect("VALUES (N'Còn hiệu lực')"),
+    "VALUES ('Còn hiệu lực')"
+  );
+});
