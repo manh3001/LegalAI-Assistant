@@ -82,7 +82,7 @@ const getSystemSettings = async () => {
         await poolConnect;
 
         // Dùng biến pool đã lấy ở trên để query
-        const result = await pool.request().query(`SELECT TOP 1 * FROM dbo.SystemSettings ORDER BY UpdatedAt DESC`);
+        const result = await pool.request().query(`SELECT * FROM dbo.SystemSettings ORDER BY UpdatedAt DESC LIMIT 1`);
 
         return result.recordset[0];
     } catch (error) {
@@ -222,9 +222,9 @@ const getRecentHistory = async (req, res) => {
         await poolConnect;
 
         const result = await pool.request().query(`
-            SELECT TOP (10) Id, Title, DocumentNumber, Category, SourceUrl, Status, CreatedAt
+            SELECT Id, Title, DocumentNumber, Category, SourceUrl, Status, CreatedAt
             FROM dbo.LegalDocuments
-            ORDER BY CreatedAt DESC
+            ORDER BY CreatedAt DESC LIMIT 10
         `);
 
         res.json({
@@ -483,13 +483,13 @@ const getFeatureUsage = async (req, res) => {
         await poolConnect;
         const request = pool.request();
         const query = `
-            SELECT TOP (10)
+            SELECT
                 FeatureName,
-                SUM(UsageCount) AS UsageCount  
+                SUM(UsageCount) AS UsageCount
             FROM [LegalBotDB].[dbo].[AIFeatureUsage]
             ${whereClause}
             GROUP BY FeatureName
-            ORDER BY UsageCount DESC
+            ORDER BY UsageCount DESC LIMIT 10
         `;
 
         const result = await request.query(query);
@@ -599,7 +599,7 @@ const getRandomLawyers = async (req, res) => {
     try {
         await poolConnect;
         const result = await pool.request().query(
-            "SELECT TOP 1 FullName, Phone, Specialty FROM Lawyers WHERE IsActive = 1 ORDER BY NEWID()"
+            "SELECT FullName, Phone, Specialty FROM Lawyers WHERE IsActive = 1 ORDER BY NEWID() LIMIT 1"
         );
         res.json({ success: true, data: result.recordset[0] });
     } catch (error) {

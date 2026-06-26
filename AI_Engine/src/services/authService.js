@@ -16,7 +16,7 @@ async function findUserByGoogleId(googleId) {
   await ensureDbReady();
   const request = pool.request();
   request.input('GoogleId', sql.NVarChar(100), googleId);
-  const query = `SELECT TOP 1 * FROM dbo.Users WHERE GoogleId = @GoogleId`;
+  const query = `SELECT * FROM dbo.Users WHERE GoogleId = @GoogleId LIMIT 1`;
   const result = await request.query(query);
   return result.recordset?.[0] || null;
 }
@@ -25,7 +25,7 @@ async function findUserByEmail(email) {
   await ensureDbReady();
   const request = pool.request();
   request.input('Email', sql.NVarChar(320), email);
-  const query = `SELECT TOP 1 * FROM dbo.Users WHERE Email = @Email`;
+  const query = `SELECT * FROM dbo.Users WHERE Email = @Email LIMIT 1`;
   const result = await request.query(query);
   return result.recordset?.[0] || null;
 }
@@ -70,7 +70,7 @@ async function updateUserWithGoogleInfo(userId, { googleId, fullName, avatar }) 
         AuthProvider = @AuthProvider,
         UpdatedAt = GETDATE()
     WHERE Id = @Id;
-    SELECT TOP 1 * FROM dbo.Users WHERE Id = @Id;
+    SELECT * FROM dbo.Users WHERE Id = @Id LIMIT 1;
   `;
 
   const result = await request.query(sqlText);

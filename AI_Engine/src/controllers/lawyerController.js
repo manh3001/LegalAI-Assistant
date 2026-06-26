@@ -26,10 +26,10 @@ exports.getRandomLawyer = async (req, res) => {
     try {
         await poolConnect;
         const result = await pool.request().query(`
-            SELECT TOP 1 Id, FullName, Phone, Specialty
+            SELECT Id, FullName, Phone, Specialty
             FROM dbo.Lawyers
             WHERE IsActive = 1
-            ORDER BY NEWID()
+            ORDER BY NEWID() LIMIT 1
         `);
 
         if (result.recordset.length === 0) {

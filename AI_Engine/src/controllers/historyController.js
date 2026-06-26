@@ -210,10 +210,10 @@ exports.saveVideoAnalysis = async (req, res) => {
     checkRequest.input('FilePath', sql.NVarChar(sql.MAX), videoUrl);
 
     const existing = await checkRequest.query(`
-      SELECT TOP 1 Id FROM dbo.ContractHistory
-      WHERE UserId = @UserId 
-      AND FilePath = @FilePath 
-      AND RecordType = 'VIDEO'
+      SELECT Id FROM dbo.ContractHistory
+      WHERE UserId = @UserId
+      AND FilePath = @FilePath
+      AND RecordType = 'VIDEO' LIMIT 1
     `);
 
     if (existing.recordset.length > 0) {
@@ -405,16 +405,16 @@ exports.getRecentDocs = async (req, res) => {
     const result = await request
       .input('userId', sql.BigInt, userId)
       .query(`
-                SELECT TOP 8 
-                    Id, 
-                    DocumentId, 
-                    DocumentTitle AS Title, 
-                    DocumentNumber, 
+                SELECT
+                    Id,
+                    DocumentId,
+                    DocumentTitle AS Title,
+                    DocumentNumber,
                     IssueYear,
                     ViewedAt
                 FROM [dbo].[UserRecentlyViewed]
                 WHERE UserId = @userId
-                ORDER BY ViewedAt DESC;
+                ORDER BY ViewedAt DESC LIMIT 8;
             `);
 
     res.json({ success: true, data: result.recordset });
