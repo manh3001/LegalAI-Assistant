@@ -534,23 +534,25 @@ const toggleSaveLaw = async (req, res) => {
         request.input('DocumentNumber', sql.NVarChar(100), documentNumber || '');
         request.input('IssueYear', sql.Int, issueYear || null);
 
-        const query = `
-            IF EXISTS (SELECT 1 FROM UserSavedLaws WHERE UserId = @UserId AND DocumentId = @DocumentId)
-            BEGIN
-                DELETE FROM UserSavedLaws WHERE UserId = @UserId AND DocumentId = @DocumentId;
-                SELECT 'Removed' AS Action;
-            END
-            ELSE
-            BEGIN
-                -- Thêm đầy đủ thông tin để bảng SavedLaws không bị rỗng các cột quan trọng
-                INSERT INTO UserSavedLaws (UserId, DocumentId, DocumentTitle, DocumentNumber, IssueYear) 
-                VALUES (@UserId, @DocumentId, @DocumentTitle, @DocumentNumber, @IssueYear);
-                SELECT 'Added' AS Action;
-            END
-        `;
+        const existing = await request.query(
+            `SELECT Id FROM UserSavedLaws WHERE UserId = @UserId AND DocumentId = @DocumentId`
+        );
 
-        const result = await request.query(query);
-        res.json({ success: true, action: result.recordset[0].Action });
+        let action;
+        if (existing.recordset.length > 0) {
+            await request.query(
+                `DELETE FROM UserSavedLaws WHERE UserId = @UserId AND DocumentId = @DocumentId`
+            );
+            action = 'Removed';
+        } else {
+            await request.query(
+                `INSERT INTO UserSavedLaws (UserId, DocumentId, DocumentTitle, DocumentNumber, IssueYear)
+                 VALUES (@UserId, @DocumentId, @DocumentTitle, @DocumentNumber, @IssueYear)`
+            );
+            action = 'Added';
+        }
+
+        res.json({ success: true, action });
     } catch (error) {
         console.error('Lỗi toggle save law:', error);
         res.status(500).json({ success: false, message: 'Lỗi server' });
@@ -575,13 +577,15 @@ const recordRecentView = async (req, res) => {
         request.input('DocumentNumber', sql.NVarChar(50), documentNumber);
         request.input('IssueYear', sql.Int, issueYear);
         const query = `
-            MERGE INTO UserRecentlyViewed AS target
-            USING (SELECT @UserId AS UserId, @DocumentId AS DocumentId) AS source
-            ON target.UserId = source.UserId AND target.DocumentId = source.DocumentId
-            WHEN MATCHED THEN
-                UPDATE SET ViewedAt = @ViewedAt
-            WHEN NOT MATCHED THEN
-                INSERT (UserId, DocumentId, ViewedAt, DocumentTitle, DocumentNumber, IssueYear) VALUES (@UserId, @DocumentId, @ViewedAt, @DocumentTitle, @DocumentNumber, @IssueYear);
+            WITH upd AS (
+                UPDATE UserRecentlyViewed
+                SET ViewedAt = @ViewedAt
+                WHERE UserId = @UserId AND DocumentId = @DocumentId
+                RETURNING Id
+            )
+            INSERT INTO UserRecentlyViewed (UserId, DocumentId, ViewedAt, DocumentTitle, DocumentNumber, IssueYear)
+            SELECT @UserId, @DocumentId, @ViewedAt, @DocumentTitle, @DocumentNumber, @IssueYear
+            WHERE NOT EXISTS (SELECT 1 FROM upd)
         `;
 
         await request.query(query);

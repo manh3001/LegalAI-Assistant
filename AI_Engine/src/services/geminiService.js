@@ -23,21 +23,15 @@ async function logUsage(featureName) {
         logRequest.input('feature', sql.NVarChar, featureName);
 
         const upsertQuery = `
-            IF EXISTS (SELECT 1 FROM [LegalBotDB].[dbo].[AIFeatureUsage] 
-                       WHERE FeatureName = @feature 
-                       AND CAST(CreatedAt AS DATE) = CAST(GETDATE() AS DATE))
-            BEGIN
-                UPDATE [LegalBotDB].[dbo].[AIFeatureUsage]
-                SET UsageCount = UsageCount + 1,
-                    LastUsed = GETDATE()
-                WHERE FeatureName = @feature
-                AND CAST(CreatedAt AS DATE) = CAST(GETDATE() AS DATE)
-            END
-            ELSE
-            BEGIN
-                INSERT INTO [LegalBotDB].[dbo].[AIFeatureUsage] (FeatureName, UsageCount, LastUsed, CreatedAt)
-                VALUES (@feature, 1, GETDATE(), GETDATE())
-            END
+            WITH upd AS (
+                UPDATE AIFeatureUsage
+                SET UsageCount = UsageCount + 1, LastUsed = NOW()
+                WHERE FeatureName = @feature AND CAST(CreatedAt AS DATE) = CAST(NOW() AS DATE)
+                RETURNING Id
+            )
+            INSERT INTO AIFeatureUsage (FeatureName, UsageCount, LastUsed, CreatedAt)
+            SELECT @feature, 1, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM upd)
         `;
 
         await logRequest.query(upsertQuery);
