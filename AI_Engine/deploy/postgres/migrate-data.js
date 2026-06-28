@@ -7,6 +7,9 @@
  */
 const fs = require('fs');
 const path = require('path');
+// Load AI_Engine/.env so DATABASE_URL (and optional SRC_DB_* overrides) can live
+// there instead of being passed inline on the command line.
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const mssql = require('mssql');
 const { Pool } = require('pg');
 

@@ -1,3 +1,7 @@
+const path = require('path');
+// Load AI_Engine/.env here so DATABASE_URL is available no matter the import
+// order (server.js requires this module before calling dotenv.config()).
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const { Pool } = require('pg');
 const { createPool, makeSql } = require('./sqlShim');
 
