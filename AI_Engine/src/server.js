@@ -8,7 +8,7 @@ const { poolConnect } = require('./config/db');
 
 // 1. Load cấu hình
 dotenv.config({ path: path.join(__dirname, '../.env') });
-const PORT = 8000;
+const PORT = process.env.PORT || 8000;
 const app = express();
 
 // Tạo Server HTTP bọc Express để chạy được Socket.io
