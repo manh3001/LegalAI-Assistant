@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "test": "node --test src/config/__tests__/*.test.js",
     "db:export": "py -m mssqlscripter -S localhost -d LegalBotDB --schema-and-data -f ./data_export/full_db_sync.sql",
     "db:sync": "sqlcmd -S localhost -d LegalBotDB -E -C -i ./data_export/full_db_sync.sql"
   },
@@ -22,13 +23,13 @@
     "JSONStream": "^1.3.5",
     "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.11.0",
-    "msnodesqlv8": "^5.1.5",
     "mssql": "^12.2.1",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^4.2.1",
     "node-fetch": "^2.7.0",
     "nodemailer": "^8.0.4",
     "pdf-parse": "^1.1.4",
+    "pg": "^8.22.0",
     "puppeteer": "^24.43.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",

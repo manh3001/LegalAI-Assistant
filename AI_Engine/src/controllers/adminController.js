@@ -82,7 +82,7 @@ const getSystemSettings = async () => {
         await poolConnect;
 
         // Dùng biến pool đã lấy ở trên để query
-        const result = await pool.request().query(`SELECT TOP 1 * FROM dbo.SystemSettings ORDER BY UpdatedAt DESC`);
+        const result = await pool.request().query(`SELECT * FROM dbo.SystemSettings ORDER BY UpdatedAt DESC LIMIT 1`);
 
         return result.recordset[0];
     } catch (error) {
@@ -222,9 +222,9 @@ const getRecentHistory = async (req, res) => {
         await poolConnect;
 
         const result = await pool.request().query(`
-            SELECT TOP (10) Id, Title, DocumentNumber, Category, SourceUrl, Status, CreatedAt
+            SELECT Id, Title, DocumentNumber, Category, SourceUrl, Status, CreatedAt
             FROM dbo.LegalDocuments
-            ORDER BY CreatedAt DESC
+            ORDER BY CreatedAt DESC LIMIT 10
         `);
 
         res.json({
@@ -383,8 +383,8 @@ const createUser = async (req, res) => {
 
         const insertSql = `
             INSERT INTO dbo.Users (FullName, Email, Password, Role, Status, CreatedAt)
-            VALUES (@FullName, @Email, @Password, @Role, @Status, @CreatedAt);
-            SELECT SCOPE_IDENTITY() AS Id;
+            VALUES (@FullName, @Email, @Password, @Role, @Status, @CreatedAt)
+            RETURNING Id
         `;
 
         const insertResult = await insertRequest.query(insertSql);
@@ -483,13 +483,13 @@ const getFeatureUsage = async (req, res) => {
         await poolConnect;
         const request = pool.request();
         const query = `
-            SELECT TOP (10)
+            SELECT
                 FeatureName,
-                SUM(UsageCount) AS UsageCount  
+                SUM(UsageCount) AS UsageCount
             FROM [LegalBotDB].[dbo].[AIFeatureUsage]
             ${whereClause}
             GROUP BY FeatureName
-            ORDER BY UsageCount DESC
+            ORDER BY UsageCount DESC LIMIT 10
         `;
 
         const result = await request.query(query);
@@ -534,23 +534,25 @@ const toggleSaveLaw = async (req, res) => {
         request.input('DocumentNumber', sql.NVarChar(100), documentNumber || '');
         request.input('IssueYear', sql.Int, issueYear || null);
 
-        const query = `
-            IF EXISTS (SELECT 1 FROM UserSavedLaws WHERE UserId = @UserId AND DocumentId = @DocumentId)
-            BEGIN
-                DELETE FROM UserSavedLaws WHERE UserId = @UserId AND DocumentId = @DocumentId;
-                SELECT 'Removed' AS Action;
-            END
-            ELSE
-            BEGIN
-                -- Thêm đầy đủ thông tin để bảng SavedLaws không bị rỗng các cột quan trọng
-                INSERT INTO UserSavedLaws (UserId, DocumentId, DocumentTitle, DocumentNumber, IssueYear) 
-                VALUES (@UserId, @DocumentId, @DocumentTitle, @DocumentNumber, @IssueYear);
-                SELECT 'Added' AS Action;
-            END
-        `;
+        const existing = await request.query(
+            `SELECT Id FROM UserSavedLaws WHERE UserId = @UserId AND DocumentId = @DocumentId`
+        );
 
-        const result = await request.query(query);
-        res.json({ success: true, action: result.recordset[0].Action });
+        let action;
+        if (existing.recordset.length > 0) {
+            await request.query(
+                `DELETE FROM UserSavedLaws WHERE UserId = @UserId AND DocumentId = @DocumentId`
+            );
+            action = 'Removed';
+        } else {
+            await request.query(
+                `INSERT INTO UserSavedLaws (UserId, DocumentId, DocumentTitle, DocumentNumber, IssueYear)
+                 VALUES (@UserId, @DocumentId, @DocumentTitle, @DocumentNumber, @IssueYear)`
+            );
+            action = 'Added';
+        }
+
+        res.json({ success: true, action });
     } catch (error) {
         console.error('Lỗi toggle save law:', error);
         res.status(500).json({ success: false, message: 'Lỗi server' });
@@ -575,13 +577,15 @@ const recordRecentView = async (req, res) => {
         request.input('DocumentNumber', sql.NVarChar(50), documentNumber);
         request.input('IssueYear', sql.Int, issueYear);
         const query = `
-            MERGE INTO UserRecentlyViewed AS target
-            USING (SELECT @UserId AS UserId, @DocumentId AS DocumentId) AS source
-            ON target.UserId = source.UserId AND target.DocumentId = source.DocumentId
-            WHEN MATCHED THEN
-                UPDATE SET ViewedAt = @ViewedAt
-            WHEN NOT MATCHED THEN
-                INSERT (UserId, DocumentId, ViewedAt, DocumentTitle, DocumentNumber, IssueYear) VALUES (@UserId, @DocumentId, @ViewedAt, @DocumentTitle, @DocumentNumber, @IssueYear);
+            WITH upd AS (
+                UPDATE UserRecentlyViewed
+                SET ViewedAt = @ViewedAt
+                WHERE UserId = @UserId AND DocumentId = @DocumentId
+                RETURNING Id
+            )
+            INSERT INTO UserRecentlyViewed (UserId, DocumentId, ViewedAt, DocumentTitle, DocumentNumber, IssueYear)
+            SELECT @UserId, @DocumentId, @ViewedAt, @DocumentTitle, @DocumentNumber, @IssueYear
+            WHERE NOT EXISTS (SELECT 1 FROM upd)
         `;
 
         await request.query(query);
@@ -599,7 +603,7 @@ const getRandomLawyers = async (req, res) => {
     try {
         await poolConnect;
         const result = await pool.request().query(
-            "SELECT TOP 1 FullName, Phone, Specialty FROM Lawyers WHERE IsActive = 1 ORDER BY NEWID()"
+            "SELECT FullName, Phone, Specialty FROM Lawyers WHERE IsActive = 1 ORDER BY NEWID() LIMIT 1"
         );
         res.json({ success: true, data: result.recordset[0] });
     } catch (error) {

@@ -32,7 +32,7 @@ exports.register = async (req, res) => {
     const checkReq = pool.request();
     checkReq.input('Email', sql.NVarChar(320), email);
     // Kiểm tra email đã tồn tại
-    const existSql = `SELECT TOP 1 Id FROM dbo.Users WHERE Email = @Email`;
+    const existSql = `SELECT Id FROM dbo.Users WHERE Email = @Email LIMIT 1`;
     const existRes = await checkReq.query(existSql);
     if (existRes.recordset && existRes.recordset.length > 0) {
       return res.status(409).json({ success: false, message: 'Địa chỉ Email này đã được đăng ký trên hệ thống LegAI!' });
@@ -51,8 +51,8 @@ exports.register = async (req, res) => {
 
     const insertSql = `
       INSERT INTO dbo.Users (Email, Password, FullName, Role, AuthProvider, CreatedAt, UpdatedAt)
-      OUTPUT INSERTED.Id, INSERTED.Email, INSERTED.FullName, INSERTED.Role, INSERTED.AuthProvider
       VALUES (@Email, @Password, @FullName, @Role, @AuthProvider, GETDATE(), GETDATE())
+      RETURNING Id, Email, FullName, Role, AuthProvider
     `;
 
     const result = await request.query(insertSql);

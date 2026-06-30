@@ -175,9 +175,9 @@ const upsertLegalData = async (data, isUpdate = false) => {
                 .query(`
                     INSERT INTO LegalDocuments
                         (Id, Title, DocumentNumber, IssueYear, Status, Category, Content, CreatedAt, SourceUrl, SyncStatusSsms, SyncStatusPinecone)
-                    OUTPUT INSERTED.Id
                     VALUES
                         (@id, @title, @documentNumber, @issueYear, @status, @category, @content, GETDATE(), @sourceUrl, 'success', 'syncing')
+                    RETURNING Id
                 `);
             documentId = result.recordset[0].Id;
         }

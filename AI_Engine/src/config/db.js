@@ -1,34 +1,34 @@
-// CHÚ Ý: Dùng thư viện mssql gốc (không dùng msnodesqlv8 nữa)
-const sql = require('mssql');
+const path = require('path');
+// Load AI_Engine/.env here so DATABASE_URL is available no matter the import
+// order (server.js requires this module before calling dotenv.config()).
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+const { Pool } = require('pg');
+const { createPool, makeSql } = require('./sqlShim');
 
-const dbConfig = {
-    user: 'sa',
-    password: '123456',
-    server: 'localhost',
-    port: 1433,
-    database: 'LegalBotDB',
-    options: {
-        encrypt: false,
-        trustServerCertificate: true,
+// Supabase pooler connection. DATABASE_URL example:
+//   postgresql://USER:PASS@HOST:6543/postgres?sslmode=require
+const pgPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-    },
-    pool: {
-        max: 10,
-        min: 0,
-        idleTimeoutMillis: 300000
-    }
-};
+const execute = (text, values) => pgPool.query(text, values);
 
-const pool = new sql.ConnectionPool(dbConfig);
-const poolConnect = pool.connect()
-    .then(() => {
-        console.log('========================================');
-        console.log(' Đã  kết nối TCP/IP tới SQL Server!');
-        console.log(' Tài khoản: sa | Cổng: 1433');
-        console.log('========================================');
-    })
-    .catch(err => {
-        console.error(' Lỗi kết nối DB (Cách 2):', err.message);
-    });
+// node-mssql-compatible exports.
+const sql = makeSql();
+const pool = createPool(execute); // NOT thenable; exposes .request()
+
+// Resolves once a connection is established (preserves `await poolConnect`).
+const poolConnect = pgPool
+  .connect()
+  .then((client) => {
+    client.release();
+    console.log('========================================');
+    console.log(' Connected to PostgreSQL (Supabase)!');
+    console.log('========================================');
+  })
+  .catch((err) => {
+    console.error(' Postgres connection error:', err.message);
+  });
 
 module.exports = { sql, pool, poolConnect };

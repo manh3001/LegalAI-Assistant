@@ -27,8 +27,8 @@ exports.saveAnalysis = async (req, res) => {
     // Cập nhật câu lệnh INSERT đầy đủ các cột
     const insertSql = `
       INSERT INTO dbo.ContractHistory (UserId, FileName, Title, RecordType, AnalysisAt, RiskScore, AnalysisJson, CreatedAt)
-      OUTPUT INSERTED.Id, INSERTED.UserId, INSERTED.Title, INSERTED.RecordType, INSERTED.RiskScore, INSERTED.AnalysisAt
       VALUES (@UserId, @FileName, @Title, @RecordType, @AnalysisAt, @RiskScore, @AnalysisJson, SYSUTCDATETIME())
+      RETURNING Id, UserId, Title, RecordType, RiskScore, AnalysisAt
     `;
 
     const result = await request.query(insertSql);
@@ -210,10 +210,10 @@ exports.saveVideoAnalysis = async (req, res) => {
     checkRequest.input('FilePath', sql.NVarChar(sql.MAX), videoUrl);
 
     const existing = await checkRequest.query(`
-      SELECT TOP 1 Id FROM dbo.ContractHistory
-      WHERE UserId = @UserId 
-      AND FilePath = @FilePath 
-      AND RecordType = 'VIDEO'
+      SELECT Id FROM dbo.ContractHistory
+      WHERE UserId = @UserId
+      AND FilePath = @FilePath
+      AND RecordType = 'VIDEO' LIMIT 1
     `);
 
     if (existing.recordset.length > 0) {
@@ -261,9 +261,9 @@ exports.saveVideoAnalysis = async (req, res) => {
     const insertSql = `
       INSERT INTO dbo.ContractHistory
       (UserId, Title, FilePath, RecordType, RiskScore, AnalysisText, AnalysisJson, CreatedAt, IsFinal)
-      OUTPUT INSERTED.Id, INSERTED.Title, INSERTED.RecordType, INSERTED.CreatedAt
       VALUES
       (@UserId, @Title, @FilePath, @RecordType, @RiskScore, @AnalysisText, @AnalysisJson, @CreatedAt, 1)
+      RETURNING Id, Title, RecordType, CreatedAt
     `;
 
     const result = await request.query(insertSql);
@@ -405,16 +405,16 @@ exports.getRecentDocs = async (req, res) => {
     const result = await request
       .input('userId', sql.BigInt, userId)
       .query(`
-                SELECT TOP 8 
-                    Id, 
-                    DocumentId, 
-                    DocumentTitle AS Title, 
-                    DocumentNumber, 
+                SELECT
+                    Id,
+                    DocumentId,
+                    DocumentTitle AS Title,
+                    DocumentNumber,
                     IssueYear,
                     ViewedAt
                 FROM [dbo].[UserRecentlyViewed]
                 WHERE UserId = @userId
-                ORDER BY ViewedAt DESC;
+                ORDER BY ViewedAt DESC LIMIT 8;
             `);
 
     res.json({ success: true, data: result.recordset });

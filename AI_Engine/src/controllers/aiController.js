@@ -496,7 +496,7 @@ exports.analyzeVideo = async (req, res) => {
         checkRequest.input('Url', sql.NVarChar(500), videoUrl);
 
         const existing = await checkRequest.query(`
-            SELECT TOP 1 * FROM VideoHistory WHERE VideoUrl = @Url
+            SELECT * FROM VideoHistory WHERE VideoUrl = @Url LIMIT 1
         `);
 
         if (existing.recordset.length > 0) {
@@ -579,9 +579,9 @@ exports.analyzeVideo = async (req, res) => {
         await pool.request().query(`
             DELETE FROM VideoHistory
             WHERE Id NOT IN (
-                SELECT TOP (500) Id 
+                SELECT Id
                 FROM VideoHistory
-                ORDER BY LastAccessedAt DESC
+                ORDER BY LastAccessedAt DESC LIMIT 500
             )
         `);
 
@@ -618,7 +618,7 @@ exports.analyzeVideo = async (req, res) => {
             try {
                 const fallback = await pool.request()
                     .input('Url', sql.NVarChar(500), videoUrl)
-                    .query(`SELECT TOP 1 * FROM VideoHistory WHERE VideoUrl = @Url`);
+                    .query(`SELECT * FROM VideoHistory WHERE VideoUrl = @Url LIMIT 1`);
 
                 if (fallback.recordset.length > 0) {
 
