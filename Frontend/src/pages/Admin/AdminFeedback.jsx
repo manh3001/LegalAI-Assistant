@@ -3,8 +3,9 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 import { MessageSquare, Star, ChevronRight, Mail } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import { API_URL } from '../../config/api';
 
-const backendBase = 'http://localhost:8000/api';
+const backendBase = API_URL;
 
 const typeColors = {
     'Báo lỗi': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },

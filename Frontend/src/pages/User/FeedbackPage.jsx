@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 import Swal from 'sweetalert2';
 import {
     BugAntIcon,
@@ -12,7 +13,7 @@ import {
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
 
-const backendBase = 'http://localhost:8000/api';
+const backendBase = API_URL;
 
 export default function FeedbackPage() {
     const [formData, setFormData] = useState({

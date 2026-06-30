@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 import Swal from 'sweetalert2';
 import pptxgen from 'pptxgenjs';
 import usePersistedState from '../../hooks/usePersistedState';
@@ -280,7 +281,7 @@ export default function AIPlanning() {
                 content: JSON.stringify(planData)
             };
 
-            const res = await axios.post('http://localhost:8000/api/history/save', payload, {
+            const res = await axios.post(`${API_URL}/history/save`, payload, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 

@@ -4,7 +4,8 @@ import axios from 'axios';
 import { LayoutDashboard, Database, Scale, Users, Activity, Search, RefreshCw, Settings, ShieldCheck, Zap, MoreVertical, Plus } from 'lucide-react';
 import Swal from 'sweetalert2';
 import AdminSidebar from '../../components/AdminSidebar';
-const backendBase = 'http://localhost:8000/api';
+import { API_URL } from '../../config/api';
+const backendBase = API_URL;
 
 export default function AdminUsers() {
     const navigate = useNavigate();

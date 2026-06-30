@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_URL } from '../../config/api';
 import {
     MagnifyingGlassIcon,
     DocumentTextIcon,
@@ -59,7 +60,7 @@ export default function LegalDocuments() {
 
     const fetchStats = async () => {
         try {
-            const res = await axios.get("http://localhost:8000/api/document-stats");
+            const res = await axios.get(`${API_URL}/document-stats`);
             if (res.data.success) {
                 const apiStats = res.data.stats;
 
@@ -90,7 +91,7 @@ export default function LegalDocuments() {
             let categoryToSend = filter.category === "Tất cả" || filter.category === "Xem tất cả" ? "" : filter.category;
 
             const normalizedSearch = normalizeSearchInput(filter.keyword);
-            const res = await axios.get("http://localhost:8000/api/documents", {
+            const res = await axios.get(`${API_URL}/documents`, {
                 params: {
                     search: normalizedSearch,
                     category: categoryToSend,
@@ -117,7 +118,7 @@ export default function LegalDocuments() {
             return;
         }
         try {
-            const res = await axios.get(`http://localhost:8000/api/user/saved-laws/${userId}`, { headers: getAuthHeaders() });
+            const res = await axios.get(`${API_URL}/user/saved-laws/${userId}`, { headers: getAuthHeaders() });
             if (res.data.success) {
                 setMyLaws(res.data.data);
             }
@@ -134,7 +135,7 @@ export default function LegalDocuments() {
             return;
         }
         try {
-            const res = await axios.get(`http://localhost:8000/api/user/recent-docs/${userId}`, { headers: getAuthHeaders() });
+            const res = await axios.get(`${API_URL}/user/recent-docs/${userId}`, { headers: getAuthHeaders() });
             if (res.data.success) {
                 setRecentDocs(res.data.data);
             }
@@ -218,7 +219,7 @@ export default function LegalDocuments() {
             };
 
             const res = await axios.post(
-                "http://localhost:8000/api/user/toggle-saved-law",
+                `${API_URL}/user/toggle-saved-law`,
                 payload,
                 { headers: getAuthHeaders() }
             );
@@ -248,7 +249,7 @@ export default function LegalDocuments() {
         }
         try {
             const payload = { userId: userId, savedLawId: savedLawId };
-            const res = await axios.delete("http://localhost:8000/api/user/remove-saved-law", { data: payload, headers: getAuthHeaders() });
+            const res = await axios.delete(`${API_URL}/user/remove-saved-law`, { data: payload, headers: getAuthHeaders() });
             if (res.data.success) {
                 fetchMyLawsFromDb();
             }
@@ -272,7 +273,7 @@ export default function LegalDocuments() {
                     DocumentNumber: simplified.DocumentNumber,
                     IssueYear: simplified.IssueYear
                 };
-                const res = await axios.post("http://localhost:8000/api/user/add-recent-doc", payload, { headers: getAuthHeaders() });
+                const res = await axios.post(`${API_URL}/user/add-recent-doc`, payload, { headers: getAuthHeaders() });
                 if (res.data.success) {
                     fetchRecentDocsFromDb();
                 }
@@ -295,7 +296,7 @@ export default function LegalDocuments() {
         }
         try {
             const payload = { userId: userId, recentDocId: recentDocId };
-            const res = await axios.delete("http://localhost:8000/api/user/remove-recent-doc", { data: payload, headers: getAuthHeaders() });
+            const res = await axios.delete(`${API_URL}/user/remove-recent-doc`, { data: payload, headers: getAuthHeaders() });
             if (res.data.success) {
                 fetchRecentDocsFromDb();
             }

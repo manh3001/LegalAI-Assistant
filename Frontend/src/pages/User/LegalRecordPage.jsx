@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_URL } from '../../config/api';
 import {
   MagnifyingGlassIcon,
   FolderOpenIcon,
@@ -55,7 +56,7 @@ export default function LegalRecordPage() {
         const userId = user.id ?? user.Id ?? user.ID;
 
         const apiRes = await axios.get(
-          `http://localhost:8000/api/history/${userId}`,
+          `${API_URL}/history/${userId}`,
           {
             params: {
               page: page,

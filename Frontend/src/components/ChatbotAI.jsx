@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { API_URL } from '../config/api';
 import { useNavigate } from 'react-router-dom';
 import {
     XMarkIcon,
@@ -102,7 +103,7 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
                 content: JSON.stringify(messages)
             };
 
-            const res = await axios.post('http://localhost:8000/api/history/save', payload, {
+            const res = await axios.post(`${API_URL}/history/save`, payload, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 

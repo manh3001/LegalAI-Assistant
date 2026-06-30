@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import { API_URL } from '../../config/api';
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -142,7 +143,7 @@ export default function DocumentViewDetail() {
   const fetchDetail = async (docId) => {
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:8000/api/documents/${docId}`);
+      const res = await axios.get(`${API_URL}/documents/${docId}`);
       if (res.data && res.data.success) {
         setDoc(res.data.data);
       }
@@ -164,7 +165,7 @@ export default function DocumentViewDetail() {
       const recordView = async () => {
         try {
           const token = localStorage.getItem("accessToken");
-          await axios.post("http://localhost:8000/api/user/record-view", {
+          await axios.post(`${API_URL}/user/record-view`, {
             documentId: doc.Id,
             documentTitle: doc.Title,
             documentNumber: doc.DocumentNumber,

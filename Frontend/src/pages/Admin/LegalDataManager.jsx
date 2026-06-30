@@ -4,13 +4,14 @@ import Swal from 'sweetalert2';
 import AdminSidebar from '../../components/AdminSidebar';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { API_URL } from '../../config/api';
 import {
     Plus, Edit2, Trash2, Eye, Search, Filter,
     AlertTriangle, CheckCircle2, XCircle, Loader2,
     ChevronLeft, ChevronRight, MoreVertical
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api/admin/legal-documents';
+const API_BASE = `${API_URL}/admin/legal-documents`;
 const VALID_CATEGORIES = [
     "Bộ máy hành chính", "Tài chính nhà nước", "Văn hóa - Xã hội", "Tài nguyên - Môi trường",
     "Bất động sản", "Xây dựng - Đô thị", "Thương mại", "Thể thao - Y tế", "Giáo dục",
@@ -330,7 +331,7 @@ export default function LegalDataManager() {
 
         try {
             const token = localStorage.getItem('accessToken');
-            const response = await axios.get(`http://localhost:8000/api/documents/${doc.Id}`, {
+            const response = await axios.get(`${API_URL}/documents/${doc.Id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 

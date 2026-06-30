@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 export default function LawyerCard() {
     const [lawyer, setLawyer] = useState(null);
 
     useEffect(() => {
         // Tự động gọi API lấy 1 luật sư ngẫu nhiên từ Database
-        axios.get('http://localhost:8000/api/ai/lawyers/random')
+        axios.get(`${API_URL}/ai/lawyers/random`)
             .then(res => {
                 if (res.data.success) {
                     setLawyer(res.data.data);

@@ -9,6 +9,7 @@ import {
     ShieldCheck, Scale, LayoutDashboard, Users, Activity, Settings, LogOut, User, FileText, BarChart2
 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
+import { API_URL, SOCKET_URL } from '../../config/api';
 export default function AdminCrawler() {
     const [isAutoCrawlEnabled, setIsAutoCrawlEnabled] = useState(false);
     const [crawlTime, setCrawlTime] = useState('02:00');
@@ -17,7 +18,7 @@ export default function AdminCrawler() {
     const [keywordFilter, setKeywordFilter] = useState('/ban-an/');
     const navigate = useNavigate();
     const location = useLocation();
-    const backendBase = 'http://localhost:8000/api';
+    const backendBase = API_URL;
     const [isManualCrawling, setIsManualCrawling] = useState(false);
     const [history, setHistory] = useState([]);
 
@@ -70,7 +71,7 @@ export default function AdminCrawler() {
     useEffect(() => {
 
         // dùng URL gốc của Server
-        const socket = io('http://localhost:8000');
+        const socket = io(SOCKET_URL);
 
         const handleProgress = (data) => {
             // Khi tiến trình (Auto hoặc Thủ công) báo cáo đã dừng và có kết quả

@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import aiClient from "../../api/aiClient";
 import axios from "axios";
+import { API_URL } from '../../config/api';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import usePersistedState from '../../hooks/usePersistedState';
 import Swal from 'sweetalert2';
@@ -133,7 +134,7 @@ export default function ContractAnalysis() {
                 contractText: rawContractString
             };
 
-            const res = await axios.post('http://localhost:8000/api/history/save', payload, {
+            const res = await axios.post(`${API_URL}/history/save`, payload, {
                 headers: {
                     Authorization: `Bearer ${token}`
                 }
