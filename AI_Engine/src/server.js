@@ -10,25 +10,26 @@ const { poolConnect } = require('./config/db');
 dotenv.config({ path: path.join(__dirname, '../.env') });
 const PORT = process.env.PORT || 8000;
 const app = express();
+// Railway runs behind a proxy; trust the first hop so rate-limiting reads the
+// real client IP (X-Forwarded-For) instead of the proxy's.
+app.set('trust proxy', 1);
+
+const { corsOptions, isAllowedOrigin, aiLimiter, authLimiter } = require('./config/security');
 
 // Tạo Server HTTP bọc Express để chạy được Socket.io
 const server = http.createServer(app);
 
-// Khởi tạo Socket.io với cấu hình CORS
+// Khởi tạo Socket.io với CORS giới hạn theo allowlist
 const io = new Server(server, {
     cors: {
-        origin: "*",
+        origin: (origin, cb) => (isAllowedOrigin(origin) ? cb(null, true) : cb(new Error('Not allowed by CORS'))),
         methods: ["GET", "POST"]
     }
 });
 global.io = io;
 
 // 2. Middleware
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -40,7 +41,8 @@ const adminRoutes = require('./routes/adminRoutes');
 const settingRoutes = require('./routes/settingRoutes');
 
 // 5. Mount Routes 
-app.use('/api/ai', aiRoutes);
+app.use('/api/ai', aiLimiter, aiRoutes);
+app.use('/api/auth', authLimiter);
 app.use('/api', apiRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/settings', settingRoutes);
