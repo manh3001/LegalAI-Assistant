@@ -202,9 +202,10 @@ export default function LegalDocuments() {
             setMyLaws(prev => prev.filter(law => law.DocumentId !== doc.Id));
         } else {
             // Nếu chưa lưu thì thêm vào đầu danh sách state
+            // Dùng đúng tên trường mà UI render (Title), khớp với dữ liệu trả về từ DB
             setMyLaws(prev => [{
                 DocumentId: doc.Id,
-                DocumentTitle: doc.Title,
+                Title: doc.Title,
                 DocumentNumber: doc.DocumentNumber
             }, ...prev]);
         }
@@ -228,6 +229,9 @@ export default function LegalDocuments() {
                 throw new Error("Server error");
             }
 
+            // Đồng bộ lại từ DB để lấy đúng Id (dùng cho nút xóa) và dữ liệu chuẩn,
+            // tránh phải tải lại trang mới hiển thị đúng.
+            await fetchMyLawsFromDb();
 
         } catch (err) {
             // 5. ROLLBACK: Nếu lỗi thì trả về trạng thái cũ
