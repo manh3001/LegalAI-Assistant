@@ -1,5 +1,5 @@
 # LegAI HUB Ecosystem
-
+https://legal-ai-assistant-manh301.vercel.app/
 [![JavaScript](https://img.shields.io/badge/JavaScript-100%25-F7DF1E?logo=javascript&logoColor=000)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=000)](https://react.dev/)
 [![Node.js](https://img.shields.io/badge/Node.js-Backend-339933?logo=node.js&logoColor=fff)](https://nodejs.org/)
