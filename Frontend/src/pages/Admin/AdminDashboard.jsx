@@ -24,7 +24,8 @@ import {
   Search
 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
-const backendBase = 'http://localhost:8000/api';
+import { API_URL, SOCKET_URL } from '../../config/api';
+const backendBase = API_URL;
 
 
 export default function AdminDashboard() {
@@ -133,7 +134,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
-    const socketUrl = 'http://localhost:8000'; // Cùng URL với backend
+    const socketUrl = SOCKET_URL; // Cùng URL với backend
     const newSocket = io(socketUrl, {
       //auth: { token }
     });

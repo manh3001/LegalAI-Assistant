@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import { API_URL } from '../../config/api';
 import toast from "react-hot-toast";
 import {
   ArrowLeftIcon,
@@ -43,7 +44,7 @@ export default function RecordDetailPage() {
           // Gọi API thực tế
           const token = localStorage.getItem("accessToken");
           res = await axios.get(
-            `http://localhost:8000/api/history/detail/${id}`,
+            `${API_URL}/history/detail/${id}`,
             {
               headers: token ? { Authorization: `Bearer ${token}` } : {},
             },

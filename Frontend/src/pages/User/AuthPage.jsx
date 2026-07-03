@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import Swal from 'sweetalert2';
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
+import { API_URL } from '../../config/api';
 import {
     ArrowPathIcon,
     CheckBadgeIcon,
@@ -63,7 +64,7 @@ export default function AuthPage() {
     }, [location]);
 
     const currentCopy = modeCopy[mode] || modeCopy.LOGIN;
-    const backendBase = "http://localhost:8000/api";
+    const backendBase = API_URL;
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
     const onChange = (e) => {

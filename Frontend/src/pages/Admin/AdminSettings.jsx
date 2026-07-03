@@ -14,8 +14,9 @@ import {
 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
 import Swal from 'sweetalert2';
+import { API_URL } from '../../config/api';
 
-const API_BASE = 'http://localhost:8000/api/admin/settings';
+const API_BASE = `${API_URL}/admin/settings`;
 
 export default function AdminSettings() {
     const navigate = useNavigate();

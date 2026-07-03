@@ -25,7 +25,9 @@ exports.getAllDocuments = async (req, res) => {
       const keywordConditions = keywords.map((keyword, index) => {
         const paramName = `searchTerm${index}`;
         request.input(paramName, sql.NVarChar, `%${keyword}%`);
-        return `(Title LIKE @${paramName} OR DocumentNumber LIKE @${paramName})`;
+        // ILIKE = case-insensitive LIKE (Postgres). Plain LIKE is case-sensitive
+        // in Postgres, unlike SQL Server's default collation.
+        return `(Title ILIKE @${paramName} OR DocumentNumber ILIKE @${paramName})`;
       });
       whereClause += ` AND ${keywordConditions.join(' AND ')}`;
     }

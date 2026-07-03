@@ -10,6 +10,17 @@ function stub(captured, rows = [], rowCount = 0) {
   };
 }
 
+test('coerces boolean inputs to 0/1 (bit -> smallint)', async () => {
+  const cap = {};
+  const pool = createPool(stub(cap, [], 1));
+  await pool
+    .request()
+    .input('on', true)                 // 2-arg form
+    .input('off', { }, false)          // 3-arg form (type ignored)
+    .query('UPDATE SystemSettings SET isAutoCrawlOn = @on, other = @off WHERE Id = 1');
+  assert.deepStrictEqual(cap.values, [1, 0]);
+});
+
 test('input (3-arg) + query: translates dialect and params, shapes recordset', async () => {
   const cap = {};
   const pool = createPool(stub(cap, [{ id: 1, email: 'a@b.c' }], 1));

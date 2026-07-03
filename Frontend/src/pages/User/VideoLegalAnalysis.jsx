@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 import { motion } from 'framer-motion';
 import Swal from 'sweetalert2';
 import usePersistedState from '../../hooks/usePersistedState';
@@ -144,7 +145,7 @@ export default function VideoLegalAnalysis() {
 
         try {
             const token = localStorage.getItem('accessToken');
-            const response = await axios.post('http://localhost:8000/api/ai/analyze-video', { videoUrl }, {
+            const response = await axios.post(`${API_URL}/ai/analyze-video`, { videoUrl }, {
                 headers: {
                     Authorization: `Bearer ${token}`
                 },
@@ -213,7 +214,7 @@ export default function VideoLegalAnalysis() {
                 })
             };
 
-            const res = await axios.post('http://localhost:8000/api/history/save', payload, {
+            const res = await axios.post(`${API_URL}/history/save`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import { API_URL } from '../../config/api';
 import toast from "react-hot-toast";
 import {
   ArrowLeftIcon,
@@ -39,7 +40,7 @@ export default function EditRecordPage() {
       try {
         const token = localStorage.getItem("accessToken");
         const res = await axios.get(
-          `http://localhost:8000/api/history/detail/${id}`,
+          `${API_URL}/history/detail/${id}`,
           { headers: token ? { Authorization: `Bearer ${token}` } : {} }
         );
 
@@ -82,7 +83,7 @@ export default function EditRecordPage() {
         description: formData.description
       };
 
-      const res = await axios.put(`http://localhost:8000/api/history/update/${id}`, payload, {
+      const res = await axios.put(`${API_URL}/history/update/${id}`, payload, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 

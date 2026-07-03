@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 import toast from 'react-hot-toast';
 import {
     ArrowLeftIcon,
@@ -39,7 +40,7 @@ export default function EditLegalRecord() {
             setLoading(true);
             try {
                 const token = localStorage.getItem('accessToken');
-                const res = await axios.get(`http://localhost:8000/api/history/detail/${id}`, {
+                const res = await axios.get(`${API_URL}/history/detail/${id}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
                 });
 
@@ -112,11 +113,11 @@ export default function EditLegalRecord() {
                 Object.entries(payload).forEach(([key, value]) => formData.append(key, value || ''));
                 formData.append('contract', file);
 
-                await axios.patch(`http://localhost:8000/api/history/update/${id}`, formData, {
+                await axios.patch(`${API_URL}/history/update/${id}`, formData, {
                     headers: { ...headers, 'Content-Type': 'multipart/form-data' }
                 });
             } else {
-                await axios.patch(`http://localhost:8000/api/history/update/${id}`, payload, { headers });
+                await axios.patch(`${API_URL}/history/update/${id}`, payload, { headers });
             }
 
             toast.success('Đã lưu thay đổi hồ sơ.');

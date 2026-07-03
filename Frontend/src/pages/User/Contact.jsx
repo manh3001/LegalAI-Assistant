@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 import {
     EnvelopeIcon,
     PhoneIcon,
@@ -92,7 +93,7 @@ export default function Contact() {
         setErrors({});
 
         setSending(true);
-        axios.post("http://localhost:8000/api/support", payload, { headers: { 'Content-Type': 'application/json' } })
+        axios.post(`${API_URL}/support`, payload, { headers: { 'Content-Type': 'application/json' } })
             .then(res => {
                 console.log('Support request response:', res.data);
             })

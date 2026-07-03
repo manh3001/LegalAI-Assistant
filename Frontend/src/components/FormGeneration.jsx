@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 import usePersistedState from '../hooks/usePersistedState';
 import {
     PaperAirplaneIcon,
@@ -257,7 +258,7 @@ export default function FormGeneration() {
                 content: JSON.stringify(formData)
             };
 
-            const res = await axios.post('http://localhost:8000/api/history/save', payload, {
+            const res = await axios.post(`${API_URL}/history/save`, payload, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 

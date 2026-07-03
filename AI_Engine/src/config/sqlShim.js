@@ -10,7 +10,11 @@ function createRequest(execute) {
   const inputs = {};
   const request = {
     input(name, typeOrValue, maybeValue) {
-      inputs[name] = arguments.length >= 3 ? maybeValue : typeOrValue;
+      const value = arguments.length >= 3 ? maybeValue : typeOrValue;
+      // MSSQL `bit` columns are `smallint` in Postgres, and pg rejects a JS
+      // boolean parameter for a smallint column. Coerce booleans to 0/1 so
+      // callers passing true/false (e.g. crawler settings) keep working.
+      inputs[name] = typeof value === 'boolean' ? (value ? 1 : 0) : value;
       return request;
     },
     async query(text) {

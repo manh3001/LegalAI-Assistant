@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_URL } from '../config/api';
 import toast from "react-hot-toast";
 import {
   EyeIcon,
@@ -33,7 +34,7 @@ export default function LegalRecordItem({ record, onDeleted }) {
     try {
       const token = localStorage.getItem("accessToken");
       await axios.delete(
-        `http://localhost:8000/api/history/delete/${safeRecord.id}`,
+        `${API_URL}/history/delete/${safeRecord.id}`,
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         },
